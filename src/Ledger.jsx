@@ -52,22 +52,33 @@ const formatter = (locale, options) => {
   return f;
 };
 
-// "Thursday, 30 July" / "7月30日星期四" — en-GB puts the day first, which is what
+// "Thursday, 30 July" / "7月30日 星期四" — en-GB puts the day first, which is what
 // this app has always shown, and zh-CN produces its own natural order.
 //
-// Built from parts rather than format() for one reason: en-GB renders a bare space
-// after the weekday, and this headline has always had a comma there. Chinese runs
-// the parts together with no separator at all, so only a literal that is exactly a
-// space directly after the weekday gets promoted — which leaves zh-CN untouched.
+// Built from parts rather than format() because Intl's punctuation needs adjusting
+// at both ends: en-GB renders a bare space after the weekday where this headline has
+// always had a comma, and zh-CN butts the weekday straight onto the date with no gap
+// at all ("7月30日星期四"), which reads cramped.
+//
+// The test for "needs a gap" is whether the text so far ends in whitespace — not
+// whether Intl emitted a literal. In zh-CN the 日 *is* a literal, but it's content
+// rather than a separator, so keying off the part type gets this exactly backwards.
 const formatHeadline = (date, locale) => {
   const parts = formatter(locale, { weekday: 'long', day: 'numeric', month: 'long' }).formatToParts(date);
-  return parts
-    .map((part, i) => {
-      const prev = parts[i - 1];
-      if (part.type === 'literal' && part.value === ' ' && prev && prev.type === 'weekday') return ', ';
-      return part.value;
-    })
-    .join('');
+  const endsOpen = (s) => s.length > 0 && !/\s$/.test(s);
+  let out = '';
+  parts.forEach((part, i) => {
+    const prev = parts[i - 1];
+    if (part.type === 'literal' && part.value === ' ' && prev && prev.type === 'weekday') {
+      out += ', ';
+      return;
+    }
+    // Separate the weekday from whatever it abuts, in either order.
+    const abutsWeekday = part.type === 'weekday' || (prev && prev.type === 'weekday');
+    if (abutsWeekday && endsOpen(out)) out += ' ';
+    out += part.value;
+  });
+  return out;
 };
 // "Jul 30" / "7月30日"
 const formatShortDate = (date, locale) =>

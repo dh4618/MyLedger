@@ -180,10 +180,22 @@ Two things worth knowing if you touch this:
 - **`t` is the translate function, so don't shadow it.** Two `.map()` callbacks in
   `Ledger.jsx` deliberately use `task` and `th` as their parameter names for this reason.
 
-Chinese glyphs come from the system (PingFang SC on iOS, Microsoft YaHei on Windows)
-rather than a downloaded webfont, so the Chinese UI costs no extra bytes and still works
-with no connection. The CJK families sit *after* Inter and Fraunces in each stack, so
-Latin text still uses the webfonts and only CJK codepoints fall through.
+Chinese glyphs come from the system (Yuanti SC and PingFang SC on iOS, Microsoft YaHei on
+Windows) rather than a downloaded webfont, so the Chinese UI costs no extra bytes and still
+works with no connection. Two ordering rules in `--font-display` and `--font-ui` are
+load-bearing:
+
+- **Latin families come first.** Fallback is per-glyph and CJK fonts carry their own rather
+  poor Latin glyphs, so a CJK family placed ahead of Inter or Georgia would capture Latin
+  text whenever the webfont failed to load.
+- **The display stack is rounded sans for Chinese, not serif.** Songti SC and its Windows
+  counterpart SimSun are high-contrast 宋体 faces that look spiky at heading sizes. 圆体
+  Yuanti SC is rounded and suits the mascots. The trailing `serif` generic is for Latin
+  only — with four named CJK families ahead of it, Chinese never reaches it.
+
+Two Chinese-only corrections live under `html[lang='zh-CN']`: the tagline drops its italic
+(no true italic CJK face exists, so browsers synthesise a smeared slant) and the wordmark
+drops its negative tracking (full-width characters are already tightly fitted).
 
 ---
 

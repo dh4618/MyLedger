@@ -25,9 +25,22 @@
      Latin text still comes from the webfonts and only Chinese characters fall
      through to the system face. These are system fonts on purpose — PingFang SC
      is already on every iPhone, so the Chinese UI costs zero extra bytes and
-     still works with no connection, which matters for an installed PWA. */
-  --font-display: 'Fraunces', Georgia, 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'Noto Serif SC', serif;
-  --font-ui: 'Inter', system-ui, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', sans-serif;
+     still works with no connection, which matters for an installed PWA.
+
+     Two ordering rules, both load-bearing:
+
+     - Fraunces/Inter/Georgia stay AHEAD of the CJK families. Fallback is
+       per-glyph and CJK fonts carry their own rather poor Latin glyphs, so a
+       CJK family placed first would capture Latin text whenever the webfont
+       fails to load.
+     - The display stack is rounded sans for CJK, not serif. Songti and its
+       Windows cousin SimSun are high-contrast 宋体 faces that look spiky at
+       heading sizes; Yuanti SC (圆体, built into iOS and macOS) is rounded and
+       suits the mascots. The trailing `serif` generic is there for Latin only —
+       with four named CJK families ahead of it, Chinese effectively never
+       reaches it. */
+  --font-display: 'Fraunces', Georgia, 'Yuanti SC', 'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', serif;
+  --font-ui: 'Inter', system-ui, 'PingFang SC', 'HarmonyOS Sans SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'PingFang SC', monospace;
   --radius-sm: 8px;
   --radius: 12px;
@@ -339,6 +352,16 @@ button,
 .dt-brand { display: flex; align-items: center; gap: 10px; }
 .dt-wordmark { font-family: var(--font-display); font-weight: 900; font-size: 22px; letter-spacing: -0.02em; }
 .dt-tagline { font-family: var(--font-display); font-style: italic; font-size: 12px; color: var(--muted); margin-top: -2px; }
+
+/* Chinese typography corrections. LanguageProvider sets lang on <html>, so these
+   apply the moment the language changes.
+
+   Italic: there is no true italic CJK face, so a browser synthesises one by
+   slanting the upright glyphs — which looks smeared rather than stylish.
+   Tracking: -0.02em is right for Fraunces but crowds full-width characters,
+   which are already tightly fitted inside their em box. */
+html[lang='zh-CN'] .dt-tagline { font-style: normal; }
+html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 .dt-settings-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px; display: flex; }
 .dt-settings-btn:hover { color: var(--ink); }
 
