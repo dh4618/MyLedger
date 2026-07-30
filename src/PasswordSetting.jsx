@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from './supabase';
 import { KeyRound, Check } from 'lucide-react';
+import { useLang } from './i18n/LanguageProvider';
 
 // Supabase's own floor is 6 characters; 8 is a slightly kinder default for
 // something that now guards the whole account with no email step behind it.
@@ -10,6 +11,7 @@ const MIN_LENGTH = 8;
 // sign-in: a user created by a magic link has no password, so the first visit
 // signs in by link and sets one here — after which no email is involved again.
 export default function PasswordSetting() {
+  const { t } = useLang();
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -26,15 +28,15 @@ export default function PasswordSetting() {
   const save = async () => {
     if (busy) return;
     if (password.length < MIN_LENGTH) {
-      setStatus({ text: `Use at least ${MIN_LENGTH} characters.`, kind: 'error' });
+      setStatus({ text: t('password.tooShort', { min: MIN_LENGTH }), kind: 'error' });
       return;
     }
     if (password !== confirm) {
-      setStatus({ text: "Those two didn't match.", kind: 'error' });
+      setStatus({ text: t('password.mismatch'), kind: 'error' });
       return;
     }
     setBusy(true);
-    setStatus({ text: 'Saving…', kind: 'info' });
+    setStatus({ text: t('password.saving'), kind: 'info' });
     const { error } = await supabase.auth.updateUser({ password });
     setBusy(false);
     if (error) {
@@ -43,13 +45,13 @@ export default function PasswordSetting() {
     }
     setPassword('');
     setConfirm('');
-    setStatus({ text: 'Saved. Use it to sign in on your phone.', kind: 'good' });
+    setStatus({ text: t('password.saved'), kind: 'good' });
   };
 
   if (!open) {
     return (
       <button className="dt-preset-btn" style={{ width: '100%', padding: '10px' }} onClick={() => setOpen(true)}>
-        <KeyRound size={14} /> Set a password
+        <KeyRound size={14} /> {t('password.set')}
       </button>
     );
   }
@@ -60,7 +62,7 @@ export default function PasswordSetting() {
         className="dt-input"
         type="password"
         autoComplete="new-password"
-        placeholder={`New password (${MIN_LENGTH}+ characters)`}
+        placeholder={t('password.newPlaceholder', { min: MIN_LENGTH })}
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         style={{ marginBottom: 8 }}
@@ -69,21 +71,21 @@ export default function PasswordSetting() {
         className="dt-input"
         type="password"
         autoComplete="new-password"
-        placeholder="Confirm password"
+        placeholder={t('password.confirmPlaceholder')}
         value={confirm}
         onChange={(e) => setConfirm(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter') save(); }}
         style={{ marginBottom: 10 }}
       />
       <div style={{ display: 'flex', gap: 8 }}>
-        <button className="dt-preset-btn" style={{ flex: 1, padding: '10px' }} onClick={close}>Cancel</button>
+        <button className="dt-preset-btn" style={{ flex: 1, padding: '10px' }} onClick={close}>{t('common.cancel')}</button>
         <button
           className="dt-preset-btn"
           style={{ flex: 1, padding: '10px' }}
           onClick={save}
           disabled={busy}
         >
-          <Check size={14} /> {busy ? 'Saving…' : 'Save'}
+          <Check size={14} /> {busy ? t('password.saving') : t('common.save')}
         </button>
       </div>
       {status && (
