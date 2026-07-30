@@ -867,6 +867,79 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
   }
 }
 
+
+/* ===========================================================================
+   Goal kinds
+   =========================================================================== */
+
+.dt-kind-hint { font-size: 11.5px; color: var(--muted); line-height: 1.4; margin-top: 7px; }
+
+/* A project whose steps are all finished but which hasn't been marked yet. Gold
+   rather than green: it's an invitation, not a completed state. */
+.dt-ready-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gold);
+  background: var(--accent-soft);
+  padding: 2px 7px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.dt-achieve-prompt {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  margin: 16px 0 4px;
+  padding: 12px 14px;
+  border: 1px dashed var(--gold);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+}
+.dt-achieved-banner {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 16px 0 4px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  font-size: 13px;
+  color: var(--ink);
+}
+.dt-achieved-banner .when { color: var(--muted); font-size: 12px; }
+
+/* Shared by the Achieved section here and any future collapsible group. */
+.dt-done-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 18px 0 8px;
+  color: var(--muted);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.dt-done-header .rule { flex: 1; height: 1px; background: var(--line); }
+.dt-done-date { font-family: var(--font-mono); font-size: 11px; color: var(--muted); flex-shrink: 0; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;

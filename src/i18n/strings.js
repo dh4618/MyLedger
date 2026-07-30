@@ -110,6 +110,17 @@ export const en = {
   'days.letters': 'M,T,W,T,F,S,S',
   'days.abbr': 'Mon,Tue,Wed,Thu,Fri,Sat,Sun',
 
+  'goal.kindOngoing': 'Ongoing',
+  'goal.kindProject': 'Achievable',
+  'goal.kindHint': 'A category that never finishes, or something you can tick off for good.',
+  'goal.stepsDone': 'All steps done — mark achieved?',
+  'goal.achieved': 'Achieved',
+  'goal.achievedOn': 'achieved {date}',
+  'goal.reopen': 'Reopen',
+  'goal.ready': 'ready',
+  'goal.lockedHint': 'Achieved — reopen it to add anything new.',
+  'goal.reopenConfirm': 'Untick this? {goal} was achieved on {date}, so it will be reopened.',
+
   'manage.title': 'Manage',
   'manage.noGoals': 'No goals yet.',
   'manage.addGoal': 'Add goal',
@@ -125,6 +136,7 @@ export const en = {
   'manage.oneOffSection': 'One-off',
   'manage.addTask': 'Add task',
   'manage.presetToggle': 'Preset',
+  'manage.achievedSection': 'Achieved · {n}',
   'manage.goalDeleteConfirm': 'Delete this goal? Its repeating tasks and presets stay, just without a goal label.',
 
   'backup.export': 'Export',
@@ -288,6 +300,17 @@ export const zhCN = {
   'days.letters': '一,二,三,四,五,六,日',
   'days.abbr': '周一,周二,周三,周四,周五,周六,周日',
 
+  'goal.kindOngoing': '持续',
+  'goal.kindProject': '可完成',
+  'goal.kindHint': '可以是永远不会结束的类别，也可以是能够彻底完成的目标。',
+  'goal.stepsDone': '所有步骤已完成 — 标记为已达成？',
+  'goal.achieved': '已达成',
+  'goal.achievedOn': '于 {date} 达成',
+  'goal.reopen': '重新开启',
+  'goal.ready': '待标记',
+  'goal.lockedHint': '已达成 —— 如需添加内容，请先重新开启。',
+  'goal.reopenConfirm': '取消勾选？{goal} 已于 {date} 达成，这会重新开启它。',
+
   'manage.title': '管理',
   'manage.noGoals': '还没有目标。',
   'manage.addGoal': '添加目标',
@@ -303,6 +326,7 @@ export const zhCN = {
   'manage.oneOffSection': '单次',
   'manage.addTask': '添加任务',
   'manage.presetToggle': '预设',
+  'manage.achievedSection': '已达成 · {n}',
   'manage.goalDeleteConfirm': '删除这个目标？它的重复任务和预设会保留，只是不再带有目标标签。',
 
   'backup.export': '导出',
