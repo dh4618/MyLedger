@@ -263,6 +263,17 @@ The storage keys and data shapes are identical, so it transfers as-is.
   is currently filtered. Without that, every long-term project would sit in the row forever.
   A past day still shows the pills for goals that had tasks that day, which is what you
   want when looking back.
+- **A keep-until-complete task is stored on one day but lives on another.** It stays in
+  `days[created].oneOff` forever, while the day it appears on — and the `completed` map
+  its tick is written to — is its *home* day: the day it was ticked off, or today while
+  it's still outstanding (`carryHomeDay`). Anything reading task state by walking `days`
+  has to follow that indirection or the task reads as untouched. Manage's task list and
+  the goal-steps-complete rule both do. Edit and delete are the other way round — they
+  mutate the stored object, so they use the storage day, which is why manage rows carry
+  both `dateStr` (home) and `sourceDateStr`.
+- **Manage's "Others" is a real goal view, not a leftovers list.** It shows the same
+  tasks the day page files under Others, matched the same way — `!goalById(...)`, so a
+  task whose goal was deleted stays reachable rather than being editable nowhere.
 - The day page groups tasks: everything with a time first in time order, then a section
   per goal in the same order as the filter pills, then anything without one under
   **Others**. Completed tasks sink to the bottom of their *own* section rather than
