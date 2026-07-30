@@ -340,10 +340,16 @@ export default function Ledger() {
   const goalStepsComplete = useCallback((goalId) => {
     const hasActiveRecurring = recurring.some((r) => r.goalId === goalId && (!r.endDate || r.endDate >= todayStr));
     if (hasActiveRecurring) return false;
-    return !Object.values(days).some((day) => (
-      day.oneOff.some((t) => t.goalId === goalId && !day.completed[t.id])
+    return !Object.entries(days).some(([ds, day]) => (
+      day.oneOff.some((task) => {
+        if (task.goalId !== goalId) return false;
+        // A keep-until-complete task is stored on the day it was created but is ticked
+        // off on its home day, so its own day's `completed` map never learns about it.
+        const homeDs = task.carryOver ? carryHomeDay(task.id) : ds;
+        return !(days[homeDs] || defaultDay()).completed[task.id];
+      })
     ));
-  }, [days, recurring, todayStr]);
+  }, [days, recurring, todayStr, carryHomeDay]);
 
   // Durable, and the only thing that drives the achieved badge and the Achieved
   // section. Unlike the old computed rule it survives adding new tasks later.
@@ -709,13 +715,26 @@ export default function Ledger() {
     .sort((a, b) => (b.achievedDate || '').localeCompare(a.achievedDate || ''));
 
   const manageFilterGoalId = manageGoalId === NO_GOAL_ID ? null : manageGoalId;
+  // "Others" means "no goal we can find" — the same rule the day page groups by — so a
+  // task whose goal was deleted is reachable here instead of belonging nowhere.
+  const belongsToManagedGoal = (item) => (
+    manageGoalId === NO_GOAL_ID ? !goalById(item.goalId) : (item.goalId || null) === manageFilterGoalId
+  );
   const goalDayTaskRows = [];
-  if (manageGoalId && manageGoalId !== NO_GOAL_ID) {
+  if (manageGoalId) {
     Object.entries(days).forEach(([ds, day]) => {
-      day.oneOff.forEach((t) => {
-        if ((t.goalId || null) === manageFilterGoalId) {
-          goalDayTaskRows.push({ ...t, dateStr: ds, completed: !!day.completed[t.id] });
-        }
+      day.oneOff.forEach((task) => {
+        if (!belongsToManagedGoal(task)) return;
+        // A keep-until-complete task is stored on the day it was created but shown, and
+        // ticked off, on its home day. Read the date and the tick from there — reading
+        // the storage day makes a task you completed on the day page look untouched.
+        const homeDs = task.carryOver ? carryHomeDay(task.id) : ds;
+        goalDayTaskRows.push({
+          ...task,
+          dateStr: homeDs,
+          sourceDateStr: ds,
+          completed: !!(days[homeDs] || defaultDay()).completed[task.id],
+        });
       });
     });
     goalDayTaskRows.sort((a, b) => b.dateStr.localeCompare(a.dateStr));
@@ -1381,17 +1400,19 @@ export default function Ledger() {
                 onAchieve={() => achieveGoal(manageGoalId)}
                 onReopen={() => reopenGoal(manageGoalId)}
                 todayStr={todayStr}
-                recurringTasks={recurring.filter((r) => (r.goalId || null) === manageFilterGoalId && (!r.endDate || r.endDate >= todayStr))}
+                recurringTasks={recurring.filter((r) => belongsToManagedGoal(r) && (!r.endDate || r.endDate >= todayStr))}
                 dayTaskRows={goalDayTaskRows}
-                presetTasks={presets.filter((p) => (p.goalId || null) === manageFilterGoalId)}
+                presetTasks={presets.filter((p) => belongsToManagedGoal(p))}
                 findMatchingPreset={findMatchingPreset}
                 onTogglePresetForTask={togglePresetForTask}
                 onToggleTaskComplete={(row) => toggleComplete(row.dateStr, row.id)}
                 openMenuTaskId={openMenuTaskId}
                 onToggleRowMenu={(id) => setOpenMenuTaskId(openMenuTaskId === id ? null : id)}
                 onCloseRowMenu={() => setOpenMenuTaskId(null)}
-                onEditTaskInstance={(row) => openEditTask({ id: row.id, name: row.name, time: row.time, goalId: row.goalId, isRecurring: false }, { presetMode: false, dateStr: row.dateStr })}
-                onDeleteTaskInstance={(row) => { deleteOneOff(row.dateStr, row.id); setOpenMenuTaskId(null); }}
+                /* Edit and delete act on where the task is stored, which is not where a
+                   carried task is shown — hence sourceDateStr rather than dateStr. */
+                onEditTaskInstance={(row) => openEditTask({ id: row.id, name: row.name, time: row.time, goalId: row.goalId, carryOver: row.carryOver, isRecurring: false }, { presetMode: false, dateStr: row.sourceDateStr })}
+                onDeleteTaskInstance={(row) => { deleteOneOff(row.sourceDateStr, row.id); setOpenMenuTaskId(null); }}
                 editingGoalId={editingGoalId}
                 editingGoalName={editingGoalName}
                 setEditingGoalName={setEditingGoalName}
@@ -1567,7 +1588,7 @@ function GoalDetail({
       <div className="dt-section-label">{t('manage.oneOffSection')}</div>
       {dayTaskRows.length === 0 && unlistedPresets.length === 0 && <div className="dt-empty-manage" style={{ padding: '8px 0' }}>{t('common.noneYet')}</div>}
 
-      {!isNoGoal && dayTaskRows.map((row) => {
+      {dayTaskRows.map((row) => {
         const isPreset = !!findMatchingPreset(row);
         const menuKey = `${row.dateStr}-${row.id}`;
         return (
