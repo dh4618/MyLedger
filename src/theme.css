@@ -1,0 +1,726 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap');
+
+/* ===========================================================================
+   Design tokens.
+
+   These used to live in a <style> block inside the Ledger component, which meant
+   nothing was themed until auth resolved and four kv reads finished — the login
+   and loading screens always painted the light palette. Now they are real CSS,
+   selected by a `data-theme` attribute that index.html sets before React boots.
+
+   Adding a theme means: a block here, plus an entry in themes.jsx.
+
+   --paper   page background        --moss   primary action / checked state
+   --raised  cards, sheets, inputs  --slate  time badges, secondary accent
+   --ink     text, active pill fill  --gold   today, FAB, completion
+   --muted   secondary text          --brick  danger
+   --line    hairlines, dividers
+   =========================================================================== */
+
+:root {
+  /* Shape and motion are shared across every theme. */
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-ui: 'Inter', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --radius-sheet: 22px;
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Sprout is the default and carries the original Ledger palette, so an existing
+   user who has never picked a theme sees no change at all. */
+:root,
+[data-theme='sprout'] {
+  --paper: #EDF0EE;
+  --raised: #FFFFFF;
+  --ink: #1B211C;
+  --muted: #6E7568;
+  --line: #D7DCD4;
+  --moss: #3F5A44;
+  --slate: #3E5C76;
+  --gold: #B8862F;
+  --brick: #9C4430;
+  --accent-soft: rgba(63, 90, 68, 0.1);
+  --slate-soft: rgba(62, 92, 118, 0.08);
+  --scrim: rgba(27, 33, 28, 0.4);
+  --shadow: 0 8px 24px rgba(27, 33, 28, 0.12);
+  --shadow-fab: 0 6px 18px rgba(184, 134, 47, 0.4);
+}
+
+[data-theme='mochi'] {
+  --paper: #FDF2F4;
+  --raised: #FFFFFF;
+  --ink: #4A2F38;
+  --muted: #9A7A85;
+  --line: #F2DDE3;
+  --moss: #E0729A;
+  --slate: #8E7BB5;
+  --gold: #E8943F;
+  --brick: #C4453F;
+  --accent-soft: rgba(224, 114, 154, 0.14);
+  --slate-soft: rgba(142, 123, 181, 0.12);
+  --scrim: rgba(74, 47, 56, 0.4);
+  --shadow: 0 8px 24px rgba(74, 47, 56, 0.14);
+  --shadow-fab: 0 6px 18px rgba(232, 148, 63, 0.4);
+}
+
+[data-theme='ember'] {
+  --paper: #FBF3EA;
+  --raised: #FFFFFF;
+  --ink: #3D2A1E;
+  --muted: #93775F;
+  --line: #EEDCC8;
+  --moss: #D2691E;
+  --slate: #8A6A4E;
+  --gold: #C9A227;
+  --brick: #A63A2A;
+  --accent-soft: rgba(210, 105, 30, 0.12);
+  --slate-soft: rgba(138, 106, 78, 0.1);
+  --scrim: rgba(61, 42, 30, 0.42);
+  --shadow: 0 8px 24px rgba(61, 42, 30, 0.14);
+  --shadow-fab: 0 6px 18px rgba(201, 162, 39, 0.42);
+}
+
+[data-theme='pixel'] {
+  --paper: #F4F1FB;
+  --raised: #FFFFFF;
+  --ink: #241E38;
+  --muted: #7C74A0;
+  --line: #E1DBF3;
+  --moss: #6D4FD6;
+  --slate: #3E7FA8;
+  --gold: #E08A2E;
+  --brick: #C43F5E;
+  --accent-soft: rgba(109, 79, 214, 0.12);
+  --slate-soft: rgba(62, 127, 168, 0.1);
+  --scrim: rgba(36, 30, 56, 0.44);
+  --shadow: 0 8px 24px rgba(36, 30, 56, 0.16);
+  --shadow-fab: 0 6px 18px rgba(224, 138, 46, 0.4);
+}
+
+[data-theme='cloudy'] {
+  --paper: #EFF5FC;
+  --raised: #FFFFFF;
+  --ink: #1E2C3D;
+  --muted: #6C819B;
+  --line: #D6E4F2;
+  --moss: #3B76C4;
+  --slate: #5C6FA8;
+  --gold: #DE9A2C;
+  --brick: #B8453C;
+  --accent-soft: rgba(59, 118, 196, 0.12);
+  --slate-soft: rgba(92, 111, 168, 0.1);
+  --scrim: rgba(30, 44, 61, 0.42);
+  --shadow: 0 8px 24px rgba(30, 44, 61, 0.14);
+  --shadow-fab: 0 6px 18px rgba(222, 154, 44, 0.4);
+}
+
+/* The one dark theme. Note --ink is light and --paper is dark here, which is
+   why every rule below has to go through the tokens rather than literal hex. */
+[data-theme='luna'] {
+  --paper: #171B26;
+  --raised: #212734;
+  --ink: #E8EAF2;
+  --muted: #9098AC;
+  --line: #2E3644;
+  --moss: #6EA8C9;
+  --slate: #8E9AD6;
+  --gold: #E4B65C;
+  --brick: #E0705F;
+  --accent-soft: rgba(110, 168, 201, 0.16);
+  --slate-soft: rgba(142, 154, 214, 0.14);
+  --scrim: rgba(0, 0, 0, 0.6);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-fab: 0 6px 18px rgba(228, 182, 92, 0.32);
+  color-scheme: dark;
+}
+
+/* Painted on <html>/<body> so the area behind the app (and the iOS overscroll
+   region) matches the theme instead of flashing white. */
+html,
+body {
+  background: var(--paper);
+}
+
+* { box-sizing: border-box; }
+
+/* ===========================================================================
+   Auth screen
+   =========================================================================== */
+
+.dt-auth-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  font-family: var(--font-ui);
+  color: var(--ink);
+  padding: 20px;
+}
+.dt-auth-card {
+  width: 100%;
+  max-width: 340px;
+  background: var(--raised);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  box-shadow: var(--shadow);
+}
+.dt-auth-mascot { display: flex; justify-content: center; margin-bottom: 6px; }
+.dt-auth-title {
+  font-family: var(--font-display);
+  font-weight: 900;
+  font-size: 26px;
+  margin: 0 0 4px;
+  text-align: center;
+}
+.dt-auth-sub { font-size: 13px; color: var(--muted); margin: 0 0 16px; text-align: center; line-height: 1.45; }
+.dt-auth-input {
+  width: 100%;
+  padding: 12px;
+  font-size: 15px;
+  font-family: var(--font-ui);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin-bottom: 10px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.dt-auth-input:focus { outline: none; border-color: var(--moss); }
+/* Wide letter-spacing and a mono face make a 6-digit code easy to check. */
+.dt-auth-code {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 24px;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+  padding: 14px 12px;
+}
+.dt-auth-button {
+  width: 100%;
+  padding: 13px;
+  font-size: 15px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  color: var(--raised);
+  background: var(--moss);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.dt-auth-button:disabled { opacity: 0.55; cursor: default; }
+.dt-auth-link {
+  width: 100%;
+  margin-top: 10px;
+  padding: 8px;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.dt-auth-status {
+  font-size: 13px;
+  margin: 12px 0 0;
+  text-align: center;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.dt-auth-status.error { color: var(--brick); }
+.dt-auth-status.good { color: var(--moss); }
+
+/* ===========================================================================
+   App shell
+   =========================================================================== */
+
+.dt-loading {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  font-family: var(--font-ui);
+  font-size: 14px;
+  color: var(--muted);
+}
+.dt-app {
+  min-height: 100vh;
+  background: var(--paper);
+  font-family: var(--font-ui);
+  color: var(--ink);
+  display: flex;
+  justify-content: center;
+}
+.dt-container {
+  width: 100%;
+  max-width: 480px;
+  min-height: 100vh;
+  background: var(--paper);
+  position: relative;
+  padding-bottom: 100px;
+}
+.dt-storage-warning { background: var(--brick); color: #FFFFFF; padding: 12px 16px; font-size: 13px; line-height: 1.4; }
+.dt-header { padding: 22px 20px 8px; }
+.dt-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.dt-brand { display: flex; align-items: center; gap: 10px; }
+.dt-wordmark { font-family: var(--font-display); font-weight: 900; font-size: 22px; letter-spacing: -0.02em; }
+.dt-tagline { font-family: var(--font-display); font-style: italic; font-size: 12px; color: var(--muted); margin-top: -2px; }
+.dt-settings-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px; display: flex; }
+.dt-settings-btn:hover { color: var(--ink); }
+
+/* The mascot in the header gives a little nod when the day is fully done. */
+.dt-header-mascot { display: flex; flex-shrink: 0; }
+.dt-header-mascot.cheer { animation: dt-bob 1.6s var(--ease-bounce) infinite; }
+
+@keyframes dt-bob {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  30% { transform: translateY(-3px) rotate(-4deg); }
+  60% { transform: translateY(-1px) rotate(3deg); }
+}
+
+.dt-goals-row { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 14px; scrollbar-width: none; }
+.dt-goals-row::-webkit-scrollbar { display: none; }
+.dt-goal-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: var(--raised);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+.dt-goal-pill.active { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+.dt-goal-pill.done:not(.active) { color: var(--muted); border-style: dashed; }
+/* x/y beside a goal name — mono so the digits don't jitter as they change. */
+.dt-goal-count { font-family: var(--font-mono); font-size: 10px; opacity: 0.75; }
+.dt-done-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--moss);
+  background: var(--accent-soft);
+  padding: 2px 6px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.dt-goal-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.dt-goal-icon { display: flex; flex-shrink: 0; }
+.dt-goal-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px dashed var(--muted);
+  color: var(--muted);
+  background: none;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.dt-date-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+.dt-date-headline { font-family: var(--font-display); font-weight: 600; font-size: 26px; cursor: pointer; }
+.dt-today-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  color: var(--gold);
+  background: none;
+  border: 1px solid var(--gold);
+  border-radius: 20px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+.dt-week-strip { display: flex; align-items: center; gap: 4px; }
+.dt-week-arrow { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; flex-shrink: 0; }
+.dt-week-arrow:hover { color: var(--ink); }
+.dt-day-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0 6px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  border: none;
+  background: none;
+  position: relative;
+}
+.dt-day-tab .letter { font-size: 10px; color: var(--muted); font-weight: 600; letter-spacing: 0.05em; }
+.dt-day-tab .num { font-family: var(--font-mono); font-size: 14px; font-weight: 500; }
+.dt-day-tab.selected { background: var(--ink); }
+.dt-day-tab.selected .letter, .dt-day-tab.selected .num { color: var(--paper); }
+.dt-day-tab.today:not(.selected) .num { color: var(--gold); font-weight: 700; }
+
+/* The week dot doubles as a tiny progress ring: --p is that day's completion
+   percentage, so an untouched day reads slate and a finished day reads gold. */
+.dt-tab-indicator { width: 7px; height: 7px; border-radius: 50%; background: transparent; }
+.dt-tab-indicator.has-tasks {
+  background: conic-gradient(var(--gold) calc(var(--p, 0) * 1%), var(--slate) 0);
+}
+.dt-tab-indicator.complete { background: var(--gold); }
+.dt-day-tab.selected .dt-tab-indicator.has-tasks { opacity: 0.75; }
+.dt-day-tab.selected .dt-tab-indicator.complete { background: var(--gold); opacity: 1; }
+
+/* ===========================================================================
+   Daily progress
+   =========================================================================== */
+
+.dt-progress { display: flex; align-items: center; gap: 10px; padding: 14px 20px 2px; }
+.dt-progress-mascot { display: flex; flex-shrink: 0; }
+.dt-progress-mascot.cheer { animation: dt-bob 1.6s var(--ease-bounce) infinite; }
+.dt-progress-main { flex: 1; min-width: 0; }
+.dt-progress-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.dt-progress-label { font-size: 12px; font-weight: 600; color: var(--muted); }
+.dt-progress-count { font-family: var(--font-mono); font-size: 12px; font-weight: 500; color: var(--muted); flex-shrink: 0; }
+.dt-progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+.dt-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--moss);
+  transition: width 0.42s var(--ease-bounce), background-color 0.3s ease;
+}
+.dt-progress.complete .dt-progress-fill { background: var(--gold); }
+.dt-progress.complete .dt-progress-label { color: var(--gold); }
+.dt-progress.complete .dt-progress-track { animation: dt-pulse 0.6s ease-out; }
+
+@keyframes dt-pulse {
+  0% { box-shadow: 0 0 0 0 var(--accent-soft); }
+  60% { box-shadow: 0 0 0 6px var(--accent-soft); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 0, 0, 0); }
+}
+
+/* ===========================================================================
+   Task list
+   =========================================================================== */
+
+.dt-body { padding: 6px 20px 0; }
+.dt-section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin: 18px 0 8px;
+}
+.dt-task-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--line); position: relative; }
+.dt-checkbox {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px solid var(--muted);
+  flex-shrink: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.15s, border-color 0.15s, transform 0.2s var(--ease-bounce);
+  background: var(--raised);
+  color: var(--raised);
+}
+.dt-checkbox:active { transform: scale(0.88); }
+.dt-checkbox.checked { background: var(--moss); border-color: var(--moss); animation: dt-pop 0.3s var(--ease-bounce); }
+
+@keyframes dt-pop {
+  0% { transform: scale(0.7); }
+  55% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+.dt-task-main { flex: 1; min-width: 0; cursor: pointer; }
+.dt-task-name { font-size: 15px; font-weight: 500; line-height: 1.3; }
+.dt-task-name.done { text-decoration: line-through; color: var(--muted); }
+.dt-task-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
+.dt-time-badge { font-family: var(--font-mono); font-size: 11px; color: var(--slate); background: var(--slate-soft); padding: 2px 6px; border-radius: 4px; }
+.dt-goal-chip { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
+.dt-goal-chip-dot { width: 6px; height: 6px; border-radius: 50%; }
+.dt-repeat-icon { color: var(--muted); flex-shrink: 0; }
+.dt-meta-note { font-size: 11px; color: var(--muted); }
+.dt-menu-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px; flex-shrink: 0; }
+.dt-menu {
+  position: absolute;
+  right: 4px;
+  top: 44px;
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  z-index: 20;
+  overflow: hidden;
+  min-width: 150px;
+}
+.dt-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-family: var(--font-ui);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--ink);
+}
+.dt-menu-item:hover { background: var(--paper); }
+.dt-menu-item.danger { color: var(--brick); }
+.dt-menu-overlay { position: fixed; inset: 0; z-index: 15; }
+.dt-empty-state { text-align: center; padding: 40px 20px 60px; color: var(--muted); }
+.dt-empty-mascot { display: flex; justify-content: center; margin-bottom: 10px; }
+.dt-empty-state .headline { font-family: var(--font-display); font-size: 17px; color: var(--ink); margin-bottom: 4px; }
+.dt-fab {
+  position: fixed;
+  bottom: 28px;
+  right: calc(50% - 240px + 20px);
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--raised);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-fab);
+  cursor: pointer;
+  z-index: 30;
+  transition: transform 0.2s var(--ease-bounce);
+}
+.dt-fab:active { transform: scale(0.92); }
+@media (max-width: 480px) { .dt-fab { right: 20px; } }
+
+/* ===========================================================================
+   Sheets and forms
+   =========================================================================== */
+
+.dt-modal-overlay { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; z-index: 60; }
+.dt-modal-sheet {
+  width: 100%;
+  max-width: 480px;
+  background: var(--raised);
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  padding: 22px 20px 28px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+.dt-modal-title { font-family: var(--font-display); font-weight: 600; font-size: 19px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; }
+.dt-field-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; display: block; }
+.dt-subfield-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+.dt-field { margin-bottom: 18px; }
+.dt-input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 11px 12px;
+  font-size: 15px;
+  font-family: var(--font-ui);
+  background: var(--paper);
+  color: var(--ink);
+}
+.dt-input:focus { outline: none; border-color: var(--moss); }
+.dt-segmented { display: flex; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.dt-segmented-btn { flex: 1; padding: 10px; text-align: center; font-size: 13px; font-weight: 500; font-family: var(--font-ui); background: var(--paper); border: none; cursor: pointer; color: var(--muted); }
+.dt-segmented-btn.active { background: var(--moss); color: var(--raised); }
+.dt-goal-picker { display: flex; flex-wrap: wrap; gap: 8px; }
+.dt-goal-option { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 20px; border: 1px solid var(--line); background: var(--paper); font-size: 13px; font-family: var(--font-ui); color: var(--ink); cursor: pointer; }
+.dt-goal-option.active { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+.dt-modal-actions { display: flex; gap: 10px; margin-top: 6px; }
+.dt-btn-primary { flex: 1; padding: 13px; background: var(--moss); color: var(--raised); border: none; border-radius: var(--radius); font-size: 15px; font-weight: 600; font-family: var(--font-ui); cursor: pointer; }
+.dt-btn-secondary { padding: 13px 18px; background: none; border: 1px solid var(--line); border-radius: var(--radius); font-size: 15px; font-family: var(--font-ui); color: var(--muted); cursor: pointer; }
+.dt-hint { font-size: 12px; color: var(--muted); margin-top: -12px; margin-bottom: 16px; }
+.dt-checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-bottom: 18px; cursor: pointer; }
+.dt-checkbox-row input { width: 15px; height: 15px; accent-color: var(--moss); }
+.dt-preset-row { display: flex; gap: 6px; margin-bottom: 10px; }
+.dt-preset-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 4px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-ui);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: var(--muted);
+}
+.dt-preset-btn:hover { color: var(--ink); border-color: var(--muted); }
+.dt-preset-btn.danger { color: var(--brick); }
+.dt-day-chips { display: flex; gap: 5px; }
+.dt-day-chip {
+  flex: 1;
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line);
+  background: var(--paper);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-ui);
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.dt-day-chip.active { background: var(--moss); border-color: var(--moss); color: var(--raised); }
+.dt-manage-panel { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
+.dt-manage-sheet {
+  width: 100%;
+  max-width: 480px;
+  background: var(--raised);
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  padding: 22px 20px 28px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+.dt-manage-section { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+.dt-goal-edit-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.dt-color-dot-btn { width: 18px; height: 18px; border-radius: 50%; border: none; cursor: pointer; flex-shrink: 0; }
+/* Doubles as the goal's icon button once an icon is chosen, so it grows a little
+   and centres its glyph rather than being a bare colour dot. */
+.dt-goal-badge-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+}
+.dt-goal-name-text { flex: 1; font-size: 14px; cursor: pointer; padding: 4px 0; }
+.dt-goal-name-input { flex: 1; border: none; border-bottom: 1px solid var(--moss); background: none; font-size: 14px; font-family: var(--font-ui); color: var(--ink); padding: 4px 0; outline: none; }
+.dt-icon-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; flex-shrink: 0; }
+.dt-icon-btn:hover { color: var(--ink); }
+.dt-icon-btn.danger:hover { color: var(--brick); }
+.dt-add-goal-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.dt-recurring-row { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.dt-recurring-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.dt-recurring-name { font-size: 14px; font-weight: 500; }
+.dt-recurring-actions { display: flex; gap: 2px; flex-shrink: 0; }
+.dt-recurring-meta { display: flex; align-items: center; gap: 8px; margin-top: 5px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.dt-task-instance-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.dt-task-instance-main { flex: 1; min-width: 0; }
+.dt-preset-toggle { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); white-space: nowrap; cursor: pointer; flex-shrink: 0; }
+.dt-preset-toggle input { width: 14px; height: 14px; accent-color: var(--moss); }
+.dt-empty-manage { font-size: 13px; color: var(--muted); padding: 20px 0; text-align: center; }
+.dt-goal-detail-head { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; }
+.dt-goal-detail-name { font-family: var(--font-display); font-weight: 600; font-size: 17px; }
+
+/* ===========================================================================
+   Appearance picker
+   =========================================================================== */
+
+.dt-theme-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.dt-theme-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-ui);
+  color: var(--ink);
+  transition: border-color 0.15s, transform 0.2s var(--ease-bounce);
+}
+.dt-theme-card:active { transform: scale(0.97); }
+.dt-theme-card.active { border-color: var(--moss); background: var(--accent-soft); }
+.dt-theme-card-body { min-width: 0; flex: 1; }
+.dt-theme-name { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+.dt-theme-blurb { font-size: 10.5px; color: var(--muted); line-height: 1.3; margin-top: 1px; }
+.dt-theme-swatches { display: flex; gap: 3px; margin-top: 5px; }
+.dt-theme-swatch { width: 11px; height: 11px; border-radius: 50%; border: 1px solid rgba(0, 0, 0, 0.12); }
+
+/* Goal icon picker */
+.dt-icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.dt-icon-option {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--muted);
+  cursor: pointer;
+}
+.dt-icon-option.active { border-color: var(--moss); background: var(--accent-soft); color: var(--moss); }
+
+/* ===========================================================================
+   Calendar
+   =========================================================================== */
+
+.dt-calendar-overlay { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
+.dt-calendar-sheet {
+  width: 100%;
+  max-width: 480px;
+  background: var(--raised);
+  border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
+  padding: 20px 20px 28px;
+}
+.dt-cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.dt-cal-month { font-family: var(--font-display); font-weight: 600; font-size: 17px; }
+.dt-cal-nav { display: flex; align-items: center; gap: 4px; }
+.dt-cal-arrow { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px; }
+.dt-cal-today-link { font-size: 12px; font-weight: 600; font-family: var(--font-ui); color: var(--gold); background: none; border: 1px solid var(--gold); border-radius: 20px; padding: 3px 10px; cursor: pointer; margin-left: 6px; }
+.dt-cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 4px; }
+.dt-cal-weekday { text-align: center; font-size: 11px; color: var(--muted); font-weight: 600; padding: 4px 0; }
+.dt-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.dt-cal-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: var(--ink);
+}
+/* Was `color: var(--line)`, which inverts badly on a dark palette — a faded
+   version of the normal text colour behaves in both directions. */
+.dt-cal-cell.outside { color: var(--muted); opacity: 0.45; }
+.dt-cal-cell.today { box-shadow: inset 0 0 0 1.5px var(--gold); font-weight: 700; }
+.dt-cal-cell.selected { background: var(--ink); color: var(--paper); font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

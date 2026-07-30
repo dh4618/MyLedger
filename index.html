@@ -15,6 +15,41 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Ledger" />
     <meta name="theme-color" content="#EDF0EE" />
+
+    <script>
+      // Applies the saved theme before React boots, so the app opens in the right
+      // colours instead of flashing the default palette on every launch. Runs after
+      // the meta tags above so it can update them in place.
+      //
+      // Keep these ids and colours in sync with THEMES in src/themes.jsx.
+      (function () {
+        var COLORS = {
+          sprout: '#EDF0EE',
+          mochi: '#FDF2F4',
+          ember: '#FBF3EA',
+          pixel: '#F4F1FB',
+          cloudy: '#EFF5FC',
+          luna: '#171B26'
+        };
+        var id = 'sprout';
+        try {
+          var saved = localStorage.getItem('ledger-theme');
+          if (saved && COLORS[saved]) id = saved;
+        } catch (e) {
+          // Storage disabled (private browsing); the default is fine.
+        }
+        var root = document.documentElement;
+        root.setAttribute('data-theme', id);
+        // Covers the moment before the stylesheet has applied.
+        root.style.background = COLORS[id];
+
+        var themeMeta = document.querySelector('meta[name="theme-color"]');
+        if (themeMeta) themeMeta.setAttribute('content', COLORS[id]);
+        // iOS reads this at launch, so it's best-effort for the dark theme.
+        var barMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+        if (barMeta && id === 'luna') barMeta.setAttribute('content', 'black');
+      })();
+    </script>
   </head>
   <body style="margin:0">
     <div id="root"></div>
