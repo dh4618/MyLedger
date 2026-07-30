@@ -36,18 +36,32 @@ function initialThemeId() {
   return DEFAULT_THEME_ID;
 }
 
+// Sets a <meta> by name, creating it if the document doesn't have one yet.
+function setMeta(name, content) {
+  let meta = document.querySelector(`meta[name="${name}"]`);
+  if (!meta) {
+    meta = document.createElement('meta');
+    meta.setAttribute('name', name);
+    document.head.appendChild(meta);
+  }
+  meta.setAttribute('content', content);
+}
+
 function applyToDocument(id) {
   const theme = getTheme(id);
   document.documentElement.dataset.theme = theme.id;
 
-  // Keeps the iOS status bar and Android browser chrome in step with the palette.
-  let meta = document.querySelector('meta[name="theme-color"]');
-  if (!meta) {
-    meta = document.createElement('meta');
-    meta.setAttribute('name', 'theme-color');
-    document.head.appendChild(meta);
-  }
-  meta.setAttribute('content', theme.themeColor);
+  // Colours the iOS status bar and Android browser chrome to match the palette,
+  // so there's no mismatched band above the app. Takes effect immediately.
+  setMeta('theme-color', theme.themeColor);
+
+  // 'default' gives dark status-bar text, 'black' gives light — chosen per theme
+  // so the clock stays legible on Luna as well as the light palettes.
+  //
+  // Unlike theme-color, iOS reads this when it creates the web view, so a theme
+  // change applies to the bar on the *next* launch rather than right away. It's
+  // set here anyway because it costs nothing and is correct on reload.
+  setMeta('apple-mobile-web-app-status-bar-style', theme.statusBar || 'default');
 
   try {
     window.localStorage.setItem(LOCAL_KEY, theme.id);

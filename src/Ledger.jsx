@@ -772,10 +772,11 @@ export default function Ledger() {
             </div>
             <div className="dt-hint" style={{ marginTop: 0 }}>Save this somewhere safe — a notes app, email to yourself, wherever. You can restore it later from here.</div>
             <textarea
+              className="dt-backup-textarea"
               readOnly
               value={exportJson}
               onClick={(e) => e.target.select()}
-              style={{ width: '100%', height: 180, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, padding: 10, border: '1px solid var(--line)', borderRadius: 10, background: 'var(--paper)', color: 'var(--ink)', marginBottom: 14, resize: 'none' }}
+              style={{ marginBottom: 14 }}
             />
             <div className="dt-modal-actions">
               <button className="dt-btn-secondary" onClick={copyExport}>{copyStatus || 'Copy text'}</button>
@@ -794,10 +795,11 @@ export default function Ledger() {
             </div>
             <div className="dt-hint" style={{ marginTop: 0 }}>Paste the contents of a previously exported backup below.</div>
             <textarea
+              className="dt-backup-textarea"
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
               placeholder="Paste backup JSON here"
-              style={{ width: '100%', height: 160, fontFamily: "'IBM Plex Mono', monospace", fontSize: 11, padding: 10, border: '1px solid var(--line)', borderRadius: 10, background: 'var(--paper)', color: 'var(--ink)', marginBottom: 10, resize: 'none' }}
+              style={{ height: 140, marginBottom: 10 }}
             />
             {importStatus && <div className="dt-hint" style={{ marginTop: 0, color: 'var(--brick)' }}>{importStatus}</div>}
             <div className="dt-modal-actions">

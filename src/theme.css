@@ -137,28 +137,70 @@
   color-scheme: dark;
 }
 
+/* ===========================================================================
+   iOS Home Screen behaviour
+
+   This app is used mainly as an installed iOS web app, which brings a few
+   platform quirks worth handling in one place:
+
+   - iOS zooms the page when you focus any field with a font-size below 16px,
+     never zooms back, and *remembers that scale between launches*. One tap on a
+     14px input is enough to make the app open zoomed in from then on, which is
+     why every focusable field below is at least 16px and why the @supports
+     block at the end of this file enforces that as a floor.
+   - text-size-adjust stops iOS inflating text of its own accord.
+   - touch-action: manipulation removes double-tap-to-zoom, the other way to end
+     up accidentally scaled.
+   - overscroll-behavior stops the whole page rubber-banding, which reads as
+     broken when there's no browser chrome around it.
+   =========================================================================== */
+
 /* Painted on <html>/<body> so the area behind the app (and the iOS overscroll
    region) matches the theme instead of flashing white. */
 html,
 body {
   background: var(--paper);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body {
+  overscroll-behavior-y: contain;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Buttons and rows only ever need a tap, so opting out of double-tap-to-zoom
+   here also removes the ~300ms delay iOS adds while waiting for a second tap.
+   Left off text and inputs so pinch-zoom to read still works. */
+button,
+.dt-task-row,
+.dt-checkbox,
+.dt-day-tab,
+.dt-goal-pill,
+.dt-goal-option,
+.dt-cal-cell,
+.dt-theme-card {
+  touch-action: manipulation;
+}
 
 /* ===========================================================================
    Auth screen
    =========================================================================== */
 
 .dt-auth-wrap {
-  min-height: 100vh;
+  min-height: 100vh; /* fallback for browsers without dvh */
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
   background: var(--paper);
   font-family: var(--font-ui);
   color: var(--ink);
-  padding: 20px;
+  padding: calc(20px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right))
+           calc(20px + env(safe-area-inset-bottom)) calc(20px + env(safe-area-inset-left));
 }
 .dt-auth-card {
   width: 100%;
@@ -180,7 +222,8 @@ body {
 .dt-auth-input {
   width: 100%;
   padding: 12px;
-  font-size: 15px;
+  /* 16px minimum — anything smaller makes iOS zoom on focus. */
+  font-size: 16px;
   font-family: var(--font-ui);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -238,7 +281,8 @@ body {
    =========================================================================== */
 
 .dt-loading {
-  min-height: 100vh;
+  min-height: 100vh; /* fallback for browsers without dvh */
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -248,9 +292,11 @@ body {
   font-family: var(--font-ui);
   font-size: 14px;
   color: var(--muted);
+  padding: calc(20px + env(safe-area-inset-top)) 20px calc(20px + env(safe-area-inset-bottom));
 }
 .dt-app {
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--paper);
   font-family: var(--font-ui);
   color: var(--ink);
@@ -261,12 +307,27 @@ body {
   width: 100%;
   max-width: 480px;
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--paper);
   position: relative;
-  padding-bottom: 100px;
+  /* Clears the FAB, plus the home indicator on a notched iPhone. */
+  padding-bottom: calc(100px + env(safe-area-inset-bottom));
 }
-.dt-storage-warning { background: var(--brick); color: #FFFFFF; padding: 12px 16px; font-size: 13px; line-height: 1.4; }
-.dt-header { padding: 22px 20px 8px; }
+.dt-storage-warning {
+  background: var(--brick);
+  color: #FFFFFF;
+  padding: calc(12px + env(safe-area-inset-top)) 16px 12px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+/* The top inset only bites when the status bar style is translucent; it's 0
+   otherwise, so this is free on desktop and in Safari. */
+.dt-header {
+  padding: calc(22px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) 8px
+           calc(20px + env(safe-area-inset-left));
+}
+/* When the warning banner is showing it has already paid the top inset. */
+.dt-storage-warning + .dt-header { padding-top: 22px; }
 .dt-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .dt-brand { display: flex; align-items: center; gap: 10px; }
 .dt-wordmark { font-family: var(--font-display); font-weight: 900; font-size: 22px; letter-spacing: -0.02em; }
@@ -385,7 +446,12 @@ body {
    Daily progress
    =========================================================================== */
 
-.dt-progress { display: flex; align-items: center; gap: 10px; padding: 14px 20px 2px; }
+.dt-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px calc(20px + env(safe-area-inset-right)) 2px calc(20px + env(safe-area-inset-left));
+}
 .dt-progress-mascot { display: flex; flex-shrink: 0; }
 .dt-progress-mascot.cheer { animation: dt-bob 1.6s var(--ease-bounce) infinite; }
 .dt-progress-main { flex: 1; min-width: 0; }
@@ -418,7 +484,7 @@ body {
    Task list
    =========================================================================== */
 
-.dt-body { padding: 6px 20px 0; }
+.dt-body { padding: 6px calc(20px + env(safe-area-inset-right)) 0 calc(20px + env(safe-area-inset-left)); }
 .dt-section-label {
   font-size: 11px;
   font-weight: 600;
@@ -493,7 +559,8 @@ body {
 .dt-empty-state .headline { font-family: var(--font-display); font-size: 17px; color: var(--ink); margin-bottom: 4px; }
 .dt-fab {
   position: fixed;
-  bottom: 28px;
+  /* Lifted clear of the home indicator, which otherwise swallows the tap. */
+  bottom: calc(28px + env(safe-area-inset-bottom));
   right: calc(50% - 240px + 20px);
   width: 54px;
   height: 54px;
@@ -510,7 +577,10 @@ body {
   transition: transform 0.2s var(--ease-bounce);
 }
 .dt-fab:active { transform: scale(0.92); }
-@media (max-width: 480px) { .dt-fab { right: 20px; } }
+@media (max-width: 480px) {
+  /* env() here matters in landscape, where the inset is on the side. */
+  .dt-fab { right: calc(20px + env(safe-area-inset-right)); }
+}
 
 /* ===========================================================================
    Sheets and forms
@@ -522,8 +592,10 @@ body {
   max-width: 480px;
   background: var(--raised);
   border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
-  padding: 22px 20px 28px;
-  max-height: 85vh;
+  /* The bottom inset is what keeps Save and Cancel above the home indicator. */
+  padding: 22px 20px calc(28px + env(safe-area-inset-bottom));
+  max-height: 85vh; /* fallback for browsers without dvh */
+  max-height: 85dvh;
   overflow-y: auto;
 }
 .dt-modal-title { font-family: var(--font-display); font-weight: 600; font-size: 19px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; }
@@ -535,7 +607,9 @@ body {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 11px 12px;
-  font-size: 15px;
+  /* 16px minimum — anything smaller makes iOS zoom on focus. Applies to the
+     date and time pickers in the task form too, which share this class. */
+  font-size: 16px;
   font-family: var(--font-ui);
   background: var(--paper);
   color: var(--ink);
@@ -551,6 +625,21 @@ body {
 .dt-btn-primary { flex: 1; padding: 13px; background: var(--moss); color: var(--raised); border: none; border-radius: var(--radius); font-size: 15px; font-weight: 600; font-family: var(--font-ui); cursor: pointer; }
 .dt-btn-secondary { padding: 13px 18px; background: none; border: 1px solid var(--line); border-radius: var(--radius); font-size: 15px; font-family: var(--font-ui); color: var(--muted); cursor: pointer; }
 .dt-hint { font-size: 12px; color: var(--muted); margin-top: -12px; margin-bottom: 16px; }
+/* Backup JSON. Was an inline style at 11px, which made iOS zoom on focus; the
+   size lives here now so the stylesheet is the single source of truth for it. */
+.dt-backup-textarea {
+  width: 100%;
+  height: 150px;
+  font-family: var(--font-mono);
+  font-size: 16px;
+  line-height: 1.35;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  resize: none;
+}
 .dt-checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-bottom: 18px; cursor: pointer; }
 .dt-checkbox-row input { width: 15px; height: 15px; accent-color: var(--moss); }
 .dt-preset-row { display: flex; gap: 6px; margin-bottom: 10px; }
@@ -597,8 +686,9 @@ body {
   max-width: 480px;
   background: var(--raised);
   border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
-  padding: 22px 20px 28px;
-  max-height: 85vh;
+  padding: 22px 20px calc(28px + env(safe-area-inset-bottom));
+  max-height: 85vh; /* fallback for browsers without dvh */
+  max-height: 85dvh;
   overflow-y: auto;
 }
 .dt-manage-section { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
@@ -619,7 +709,9 @@ body {
   color: #FFFFFF;
 }
 .dt-goal-name-text { flex: 1; font-size: 14px; cursor: pointer; padding: 4px 0; }
-.dt-goal-name-input { flex: 1; border: none; border-bottom: 1px solid var(--moss); background: none; font-size: 14px; font-family: var(--font-ui); color: var(--ink); padding: 4px 0; outline: none; }
+/* 16px rather than matching the 14px label it replaces — a smaller value makes
+   iOS zoom the moment you tap to rename a goal. */
+.dt-goal-name-input { flex: 1; border: none; border-bottom: 1px solid var(--moss); background: none; font-size: 16px; font-family: var(--font-ui); color: var(--ink); padding: 4px 0; outline: none; }
 .dt-icon-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; flex-shrink: 0; }
 .dt-icon-btn:hover { color: var(--ink); }
 .dt-icon-btn.danger:hover { color: var(--brick); }
@@ -689,7 +781,7 @@ body {
   max-width: 480px;
   background: var(--raised);
   border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
-  padding: 20px 20px 28px;
+  padding: 20px 20px calc(28px + env(safe-area-inset-bottom));
 }
 .dt-cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
 .dt-cal-month { font-family: var(--font-display); font-weight: 600; font-size: 17px; }
@@ -717,6 +809,27 @@ body {
 .dt-cal-cell.outside { color: var(--muted); opacity: 0.45; }
 .dt-cal-cell.today { box-shadow: inset 0 0 0 1.5px var(--gold); font-weight: 700; }
 .dt-cal-cell.selected { background: var(--ink); color: var(--paper); font-weight: 700; }
+
+/* ===========================================================================
+   iOS zoom floor
+
+   A backstop for the rule that caused this app to open zoomed in: iOS zooms the
+   page whenever a field smaller than 16px takes focus, doesn't zoom back, and
+   persists the scale across launches of an installed web app.
+
+   Deliberately kept at single-element specificity so it sets a default for any
+   field that doesn't style itself, without stamping on ones that legitimately go
+   larger (.dt-auth-code is 24px). That means it can't stop a *future* rule from
+   setting something smaller — the automated font-size assertion in the test
+   script is what guards against that.
+   =========================================================================== */
+@supports (-webkit-touch-callout: none) {
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
