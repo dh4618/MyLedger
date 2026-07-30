@@ -1,7 +1,7 @@
 import { storage } from './storage';
 import { supabase } from './supabase';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays, Sparkles, ChevronDown, Trophy, RotateCcw } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
 import { useLang } from './i18n/LanguageProvider';
 import ProgressBar from './ProgressBar';
@@ -119,6 +119,8 @@ export default function Ledger() {
   const [editingGoalId, setEditingGoalId] = useState(null);
   const [editingGoalName, setEditingGoalName] = useState('');
   const [iconPickerGoalId, setIconPickerGoalId] = useState(null);
+  const [newGoalKind, setNewGoalKind] = useState('ongoing');
+  const [showAchieved, setShowAchieved] = useState(false);
   const [modal, setModal] = useState(null); // { mode: 'add'|'edit', presetMode, lockRepeats, form: {...} }
   const [presets, setPresets] = useState([]);
   const [confirmDialog, setConfirmDialog] = useState(null); // { message, onConfirm }
@@ -327,23 +329,44 @@ export default function Ledger() {
   const goalById = (id) => goals.find((g) => g.id === id);
 
   // A goal is auto-marked done when it has no active repeating tasks and every
-  // one-off task under it (among the days currently loaded) is completed.
-  const goalIsDone = useCallback((goalId) => {
+  // Nothing outstanding under this goal: no repeating task still running, and every
+  // one-off ticked. A goal with no tasks at all counts as complete — there is nothing
+  // left to do — which is what lets you record something you simply went and did
+  // without ever breaking it into steps.
+  //
+  // This deliberately inverts the old rule, which treated "no tasks" as not-done. It
+  // was only ever used to render a transient badge; now it gates a durable action, and
+  // "you have nothing left to do" is the honest reading.
+  const goalStepsComplete = useCallback((goalId) => {
     const hasActiveRecurring = recurring.some((r) => r.goalId === goalId && (!r.endDate || r.endDate >= todayStr));
     if (hasActiveRecurring) return false;
-    let total = 0;
-    let completedCount = 0;
-    Object.values(days).forEach((day) => {
-      day.oneOff.forEach((t) => {
-        if (t.goalId === goalId) {
-          total += 1;
-          if (day.completed[t.id]) completedCount += 1;
-        }
-      });
-    });
-    if (total === 0) return false;
-    return completedCount === total;
+    return !Object.values(days).some((day) => (
+      day.oneOff.some((t) => t.goalId === goalId && !day.completed[t.id])
+    ));
   }, [days, recurring, todayStr]);
+
+  // Durable, and the only thing that drives the achieved badge and the Achieved
+  // section. Unlike the old computed rule it survives adding new tasks later.
+  const goalAchieved = (g) => !!(g && g.achievedDate);
+  // An absent kind means 'ongoing', so goals stored before this existed need no
+  // migration and simply keep behaving as categories.
+  const isProject = (g) => !!g && g.kind === 'project';
+  // Only projects can be achieved, and only once nothing is outstanding.
+  const canAchieve = (g) => isProject(g) && !goalAchieved(g) && goalStepsComplete(g.id);
+
+  const achieveGoal = (id) => {
+    saveGoals(goals.map((g) => (g.id === id ? { ...g, achievedDate: todayStr } : g)));
+  };
+  const reopenGoal = (id) => {
+    saveGoals(goals.map((g) => (g.id === id ? { ...g, achievedDate: null } : g)));
+  };
+  const setGoalKind = (id, kind) => {
+    // Dropping back to a category clears the achievement — a category has nothing
+    // to achieve, so leaving the date behind would strand it.
+    saveGoals(goals.map((g) => (
+      g.id === id ? { ...g, kind, achievedDate: kind === 'project' ? g.achievedDate || null : null } : g
+    )));
+  };
 
   // The only way out, now that a device stays signed in indefinitely.
   const signOut = () => {
@@ -362,8 +385,31 @@ export default function Ledger() {
   // ---- Actions ----
   const toggleComplete = (dateStr, taskId) => {
     const day = getDay(dateStr);
-    const completed = { ...day.completed, [taskId]: !day.completed[taskId] };
-    saveDay(dateStr, { ...day, completed });
+    const wasComplete = !!day.completed[taskId];
+    const apply = () => {
+      const completed = { ...day.completed, [taskId]: !wasComplete };
+      saveDay(dateStr, { ...day, completed });
+    };
+
+    // Unticking under an achieved goal means "actually I didn't do that step", so the
+    // goal can't still be achieved. Confirm first — the achieved date is a record, and
+    // it should never disappear silently.
+    if (wasComplete) {
+      const task = getTasksForDate(dateStr).find((x) => x.id === taskId);
+      const goal = task && goalById(task.goalId);
+      if (goalAchieved(goal)) {
+        setConfirmDialog({
+          message: t('goal.reopenConfirm', {
+            goal: goal.name,
+            date: formatShortDate(fromDateStr(goal.achievedDate), locale),
+          }),
+          confirmLabel: t('goal.reopen'),
+          onConfirm: () => { reopenGoal(goal.id); apply(); },
+        });
+        return;
+      }
+    }
+    apply();
   };
 
   const skipToday = (dateStr, taskId) => {
@@ -560,8 +606,9 @@ export default function Ledger() {
   const addGoal = () => {
     if (!newGoalName.trim()) return;
     const color = GOAL_COLORS[goals.length % GOAL_COLORS.length];
-    saveGoals([...goals, { id: genId(), name: newGoalName.trim(), color }]);
+    saveGoals([...goals, { id: genId(), name: newGoalName.trim(), color, kind: newGoalKind, achievedDate: null }]);
     setNewGoalName('');
+    setNewGoalKind('ongoing');
     setShowAddGoalInManage(false);
   };
   const deleteGoal = (id) => {
@@ -656,6 +703,11 @@ export default function Ledger() {
     if (dayCompleted[t.id]) goalProgress[key].done += 1;
   });
 
+  // Newest first — the most recent achievement is the one you want to see.
+  const achievedGoals = goals
+    .filter(goalAchieved)
+    .sort((a, b) => (b.achievedDate || '').localeCompare(a.achievedDate || ''));
+
   const manageFilterGoalId = manageGoalId === NO_GOAL_ID ? null : manageGoalId;
   const goalDayTaskRows = [];
   if (manageGoalId && manageGoalId !== NO_GOAL_ID) {
@@ -707,19 +759,19 @@ export default function Ledger() {
           </div>
 
           <div className="dt-goals-row">
-            {goals.map((g) => {
-              const done = goalIsDone(g.id);
+            {/* Only goals with something on this day, so a pile of long-term projects
+                doesn't crowd the row. The active filter stays visible even once its
+                count drops to zero, otherwise you'd have no way to switch it off. */}
+            {goals.filter((g) => goalProgress[g.id] || activeGoalFilter === g.id).map((g) => {
               const active = activeGoalFilter === g.id;
               const count = goalProgress[g.id];
               return (
                 <div
                   key={g.id}
-                  className={`dt-goal-pill ${active ? 'active' : ''} ${done ? 'done' : ''}`}
+                  className={`dt-goal-pill ${active ? 'active' : ''}`}
                   onClick={() => setActiveGoalFilter(active ? null : g.id)}
                 >
-                  {done ? (
-                    <Check size={12} strokeWidth={3} color={active ? 'var(--paper)' : 'var(--moss)'} />
-                  ) : hasGoalIcon(g.icon) ? (
+                  {hasGoalIcon(g.icon) ? (
                     <span className="dt-goal-icon">
                       <GoalIcon icon={g.icon} size={13} color={active ? 'var(--paper)' : g.color} />
                     </span>
@@ -1047,7 +1099,10 @@ export default function Ledger() {
                   className={`dt-goal-option ${modal.form.goalId === null ? 'active' : ''}`}
                   onClick={() => setModal({ ...modal, form: { ...modal.form, goalId: null } })}
                 >{t('common.others')}</div>
-                {goals.map((g) => {
+                {/* An achieved goal takes no new work. It stays selectable only when the
+                    task being edited already belongs to it, so editing can't silently
+                    strip a task's goal. */}
+                {goals.filter((g) => !goalAchieved(g) || modal.form.goalId === g.id).map((g) => {
                   const picked = modal.form.goalId === g.id;
                   return (
                     <div
@@ -1125,8 +1180,8 @@ export default function Ledger() {
             {!manageGoalId && (
               <>
                 {goals.length === 0 && <div className="dt-empty-manage">{t('manage.noGoals')}</div>}
-                {goals.map((g) => {
-                  const done = goalIsDone(g.id);
+                {goals.filter((g) => !goalAchieved(g)).map((g) => {
+                  const ready = canAchieve(g);
                   return (
                     <div key={g.id}>
                       <div className="dt-goal-edit-row">
@@ -1151,7 +1206,7 @@ export default function Ledger() {
                           <div className="dt-goal-name-text" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }} onClick={() => setManageGoalId(g.id)}>
                             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               {g.name}
-                              {done && <span className="dt-done-badge"><Check size={10} strokeWidth={3} /> {t('common.done')}</span>}
+                              {ready && <span className="dt-ready-chip"><Sparkles size={9} /> {t('goal.ready')}</span>}
                             </span>
                             <ChevronRight size={16} color="var(--muted)" />
                           </div>
@@ -1193,7 +1248,18 @@ export default function Ledger() {
                 </div>
 
                 {showAddGoalInManage ? (
-                  <div className="dt-add-goal-row">
+                  <div style={{ marginTop: 12 }}>
+                    <div className="dt-segmented" style={{ marginBottom: 8 }}>
+                      {['ongoing', 'project'].map((k) => (
+                        <button
+                          key={k}
+                          className={`dt-segmented-btn ${newGoalKind === k ? 'active' : ''}`}
+                          onClick={() => setNewGoalKind(k)}
+                        >{t(k === 'ongoing' ? 'goal.kindOngoing' : 'goal.kindProject')}</button>
+                      ))}
+                    </div>
+                    <div className="dt-kind-hint" style={{ marginBottom: 10 }}>{t('goal.kindHint')}</div>
+                    <div className="dt-add-goal-row" style={{ marginTop: 0 }}>
                     <input
                       autoFocus
                       className="dt-input"
@@ -1203,11 +1269,37 @@ export default function Ledger() {
                       onKeyDown={(e) => { if (e.key === 'Enter') addGoal(); if (e.key === 'Escape') { setShowAddGoalInManage(false); setNewGoalName(''); } }}
                     />
                     <button className="dt-goal-add" onClick={addGoal}><Check size={14} /></button>
+                    </div>
                   </div>
                 ) : (
                   <button className="dt-preset-btn" style={{ width: '100%', marginTop: 12, padding: '10px' }} onClick={() => setShowAddGoalInManage(true)}>
                     <Plus size={14} /> {t('manage.addGoal')}
                   </button>
+                )}
+
+                {achievedGoals.length > 0 && (
+                  <>
+                    <button className="dt-done-header" onClick={() => setShowAchieved(!showAchieved)}>
+                      <span className="rule" />
+                      {t('manage.achievedSection', { n: achievedGoals.length })}
+                      <ChevronDown size={14} style={{ transform: showAchieved ? 'none' : 'rotate(-90deg)' }} />
+                      <span className="rule" />
+                    </button>
+                    {showAchieved && achievedGoals.map((g) => (
+                      <div key={g.id} className="dt-goal-edit-row">
+                        <span className="dt-goal-badge-btn" style={{ background: g.color, opacity: 0.55 }}>
+                          <GoalIcon icon={g.icon} size={13} color="currentColor" />
+                        </span>
+                        <div
+                          className="dt-goal-name-text"
+                          style={{ color: 'var(--muted)' }}
+                          onClick={() => setManageGoalId(g.id)}
+                        >{g.name}</div>
+                        <span className="dt-done-date">{formatShortDate(fromDateStr(g.achievedDate), locale)}</span>
+                        <ChevronRight size={16} color="var(--muted)" />
+                      </div>
+                    ))}
+                  </>
                 )}
 
                 <div className="dt-manage-section">
@@ -1282,7 +1374,12 @@ export default function Ledger() {
                 t={t}
                 locale={locale}
                 weekdayAbbr={weekdayAbbr}
-                done={manageGoalId !== NO_GOAL_ID && goalIsDone(manageGoalId)}
+                goalKind={manageGoalId !== NO_GOAL_ID ? (isProject(goalById(manageGoalId)) ? 'project' : 'ongoing') : 'ongoing'}
+                achievedDate={manageGoalId !== NO_GOAL_ID ? (goalById(manageGoalId) || {}).achievedDate : null}
+                canAchieve={manageGoalId !== NO_GOAL_ID && canAchieve(goalById(manageGoalId))}
+                onSetKind={(kind) => setGoalKind(manageGoalId, kind)}
+                onAchieve={() => achieveGoal(manageGoalId)}
+                onReopen={() => reopenGoal(manageGoalId)}
                 todayStr={todayStr}
                 recurringTasks={recurring.filter((r) => (r.goalId || null) === manageFilterGoalId && (!r.endDate || r.endDate >= todayStr))}
                 dayTaskRows={goalDayTaskRows}
@@ -1370,7 +1467,8 @@ function CalendarPicker({ selectedDateStr, todayStr, locale, t, weekdayLetters, 
 }
 
 function GoalDetail({
-  goal, isNoGoal, done, todayStr, t, locale, weekdayAbbr, recurringTasks, dayTaskRows, presetTasks, findMatchingPreset, onTogglePresetForTask, onToggleTaskComplete,
+  goal, isNoGoal, goalKind, achievedDate, canAchieve, onSetKind, onAchieve, onReopen,
+  todayStr, t, locale, weekdayAbbr, recurringTasks, dayTaskRows, presetTasks, findMatchingPreset, onTogglePresetForTask, onToggleTaskComplete,
   openMenuTaskId, onToggleRowMenu, onCloseRowMenu, onEditTaskInstance, onDeleteTaskInstance,
   editingGoalId, editingGoalName, setEditingGoalName,
   onBack, onCycleColor, onStartRename, onCommitRename, onCancelRename,
@@ -1410,8 +1508,41 @@ function GoalDetail({
             onClick={isNoGoal ? undefined : onStartRename}
           >{goal.name}</div>
         )}
-        {done && <span className="dt-done-badge"><Check size={10} strokeWidth={3} /> {t('common.done')}</span>}
+        {achievedDate && <span className="dt-done-badge"><Check size={10} strokeWidth={3} /> {t('goal.achieved')}</span>}
       </div>
+
+      {!isNoGoal && (
+        <>
+          <div className="dt-segmented">
+            {['ongoing', 'project'].map((k) => (
+              <button
+                key={k}
+                className={`dt-segmented-btn ${goalKind === k ? 'active' : ''}`}
+                onClick={() => onSetKind(k)}
+              >{t(k === 'ongoing' ? 'goal.kindOngoing' : 'goal.kindProject')}</button>
+            ))}
+          </div>
+          <div className="dt-kind-hint">{t('goal.kindHint')}</div>
+
+          {/* Achieving is gated on there being nothing outstanding, so this is an
+              offer that appears rather than a button you can press at any time. */}
+          {canAchieve && (
+            <button className="dt-achieve-prompt" onClick={onAchieve}>
+              <Sparkles size={16} color="var(--gold)" />
+              {t('goal.stepsDone')}
+            </button>
+          )}
+          {achievedDate && (
+            <div className="dt-achieved-banner">
+              <Trophy size={16} color="var(--moss)" />
+              <span className="when">{t('goal.achievedOn', { date: formatShortDate(fromDateStr(achievedDate), locale) })}</span>
+              <button className="dt-preset-btn" style={{ marginLeft: 'auto', flex: 'none', padding: '6px 10px' }} onClick={onReopen}>
+                <RotateCcw size={13} /> {t('goal.reopen')}
+              </button>
+            </div>
+          )}
+        </>
+      )}
 
       <div className="dt-section-label" style={{ margin: '0 0 8px' }}>{t('manage.repeatedSection')}</div>
       {recurringTasks.length === 0 && <div className="dt-empty-manage" style={{ padding: '8px 0' }}>{t('common.noneYet')}</div>}
@@ -1479,9 +1610,13 @@ function GoalDetail({
         </div>
       ))}
 
-      <button className="dt-preset-btn" style={{ width: '100%', marginTop: 14, padding: '10px' }} onClick={onAddPreset}>
-        <Plus size={14} /> {t('manage.addTask')}
-      </button>
+      {achievedDate ? (
+        <div className="dt-hint" style={{ margin: '14px 0 0' }}>{t('goal.lockedHint')}</div>
+      ) : (
+        <button className="dt-preset-btn" style={{ width: '100%', marginTop: 14, padding: '10px' }} onClick={onAddPreset}>
+          <Plus size={14} /> {t('manage.addTask')}
+        </button>
+      )}
     </div>
   );
 }

@@ -241,6 +241,28 @@ The storage keys and data shapes are identical, so it transfers as-is.
   that's what stops a flaky connection from looking like being signed out.
 - Progress is derived, never stored: the bar and the `x/y` counts come from the same
   `completed` map the checkboxes already write to.
+- **Goals come in two kinds.** `kind: 'ongoing'` is a category that never finishes —
+  Fitness, Reading. `kind: 'project'` is something you can achieve — "see the northern
+  lights", broken into tasks like "book flights". **An absent `kind` means ongoing**, so
+  goals created before this existed need no migration.
+  - Achieving is *gated*, not free-form: the action only appears when nothing is
+    outstanding — no repeating task still active, and every one-off ticked. A project with
+    **no tasks at all** counts as complete, which is what lets you record something you
+    simply went and did. Note this inverts the old `goalIsDone`, which treated "no tasks"
+    as not-done; that only drove a transient badge, whereas this gates a durable action.
+  - `achievedDate` is durable and survives adding tasks later — unlike the old computed
+    badge, which flipped back.
+  - **An achieved goal takes no new tasks.** Two entry points are closed: the goal picker
+    in the task form, and "Add task" in the goal's detail view. The preset quick-add only
+    appears once a goal is selected, so closing the picker closes it too. When *editing* a
+    task that already belongs to an achieved goal, that goal stays selectable so the task
+    can't silently lose it.
+  - Unticking a task under an achieved goal reopens the goal, behind a confirm naming the
+    goal and its date — the record is never lost silently.
+- The goal pills row shows only goals with tasks on the day you're viewing, plus whichever
+  is currently filtered. Without that, every long-term project would sit in the row forever.
+  A past day still shows the pills for goals that had tasks that day, which is what you
+  want when looking back.
 - The day page groups tasks: everything with a time first in time order, then a section
   per goal in the same order as the filter pills, then anything without one under
   **Others**. Completed tasks sink to the bottom of their *own* section rather than
