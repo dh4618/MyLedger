@@ -7,25 +7,26 @@ import {
 // A curated set rather than all of lucide: a short grid is quicker to pick from,
 // and it keeps the bundle to the icons actually reachable from the UI.
 //
-// `id` is what gets stored on the goal, so these strings are permanent — rename a
-// label freely, but never an id, or existing goals lose their icon.
+// `id` is what gets stored on the goal, so these strings are permanent — never
+// rename an id, or existing goals lose their icon. The visible label lives in
+// src/i18n/strings.js under goalIcon.<id>, so it can be translated.
 export const GOAL_ICONS = [
-  { id: 'dumbbell', label: 'Fitness', Icon: Dumbbell },
-  { id: 'book', label: 'Reading', Icon: BookOpen },
-  { id: 'heart', label: 'Health', Icon: Heart },
-  { id: 'sparkles', label: 'Self-care', Icon: Sparkles },
-  { id: 'coffee', label: 'Routine', Icon: Coffee },
-  { id: 'music', label: 'Music', Icon: Music },
-  { id: 'leaf', label: 'Outdoors', Icon: Leaf },
-  { id: 'code', label: 'Work', Icon: Code },
-  { id: 'wallet', label: 'Money', Icon: Wallet },
-  { id: 'bed', label: 'Rest', Icon: Bed },
-  { id: 'bike', label: 'Cycling', Icon: Bike },
-  { id: 'camera', label: 'Photos', Icon: Camera },
-  { id: 'paw', label: 'Pets', Icon: PawPrint },
-  { id: 'food', label: 'Food', Icon: Utensils },
-  { id: 'brain', label: 'Study', Icon: Brain },
-  { id: 'sun', label: 'Morning', Icon: Sun },
+  { id: 'dumbbell', Icon: Dumbbell },
+  { id: 'book', Icon: BookOpen },
+  { id: 'heart', Icon: Heart },
+  { id: 'sparkles', Icon: Sparkles },
+  { id: 'coffee', Icon: Coffee },
+  { id: 'music', Icon: Music },
+  { id: 'leaf', Icon: Leaf },
+  { id: 'code', Icon: Code },
+  { id: 'wallet', Icon: Wallet },
+  { id: 'bed', Icon: Bed },
+  { id: 'bike', Icon: Bike },
+  { id: 'camera', Icon: Camera },
+  { id: 'paw', Icon: PawPrint },
+  { id: 'food', Icon: Utensils },
+  { id: 'brain', Icon: Brain },
+  { id: 'sun', Icon: Sun },
 ];
 
 const byId = (id) => GOAL_ICONS.find((entry) => entry.id === id);

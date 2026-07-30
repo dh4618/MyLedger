@@ -3,8 +3,10 @@ import { supabase } from './supabase';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
+import { useLang } from './i18n/LanguageProvider';
 import ProgressBar from './ProgressBar';
 import PasswordSetting from './PasswordSetting';
+import LanguagePicker from './LanguagePicker';
 import { GOAL_ICONS, GoalIcon, hasGoalIcon } from './goalIcons';
 
 const GOAL_COLORS = ['#3F5A44', '#3E5C76', '#B8862F', '#9C4430', '#6B5B87', '#3F7A6B'];
@@ -12,8 +14,6 @@ const NO_GOAL_ID = '__no_goal__';
 const NO_GOAL_COLOR = '#8A8577';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // Monday-first, values match JS Date.getDay()
-const WEEKDAY_LETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-const WEEKDAY_ABBR = { 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat', 0: 'Sun' };
 
 const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
@@ -35,22 +35,64 @@ const startOfWeek = (d) => {
   date.setDate(date.getDate() + diff);
   return date;
 };
-const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
 const defaultDay = () => ({ oneOff: [], completed: {}, removedRecurring: [] });
 
-const summarizeDays = (days) => {
+// Dates come from Intl rather than hand-written month and weekday arrays, so a new
+// language needs no date work at all. Formatters are cached per locale because
+// constructing one is comparatively expensive and these run on every render of the
+// week strip and the calendar grid.
+const formatterCache = new Map();
+const formatter = (locale, options) => {
+  const key = `${locale}|${JSON.stringify(options)}`;
+  let f = formatterCache.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat(locale, options);
+    formatterCache.set(key, f);
+  }
+  return f;
+};
+
+// "Thursday, 30 July" / "7月30日星期四" — en-GB puts the day first, which is what
+// this app has always shown, and zh-CN produces its own natural order.
+//
+// Built from parts rather than format() for one reason: en-GB renders a bare space
+// after the weekday, and this headline has always had a comma there. Chinese runs
+// the parts together with no separator at all, so only a literal that is exactly a
+// space directly after the weekday gets promoted — which leaves zh-CN untouched.
+const formatHeadline = (date, locale) => {
+  const parts = formatter(locale, { weekday: 'long', day: 'numeric', month: 'long' }).formatToParts(date);
+  return parts
+    .map((part, i) => {
+      const prev = parts[i - 1];
+      if (part.type === 'literal' && part.value === ' ' && prev && prev.type === 'weekday') return ', ';
+      return part.value;
+    })
+    .join('');
+};
+// "Jul 30" / "7月30日"
+const formatShortDate = (date, locale) =>
+  formatter(locale, { day: 'numeric', month: 'short' }).format(date);
+// "July 2026" / "2026年7月"
+const formatMonthYear = (date, locale) =>
+  formatter(locale, { year: 'numeric', month: 'long' }).format(date);
+
+// Takes t and the localised abbreviations so the summary reads naturally in both
+// languages — including the separator, which is 、rather than a comma in Chinese.
+const summarizeDays = (days, t, weekdayAbbr) => {
   const d = days && days.length ? days : ALL_DAYS;
   const set = new Set(d);
-  if (set.size === 7) return 'Every day';
-  if (set.size === 5 && [1, 2, 3, 4, 5].every((x) => set.has(x))) return 'Weekdays';
-  if (set.size === 2 && set.has(0) && set.has(6)) return 'Weekends';
-  return WEEKDAY_ORDER.filter((x) => set.has(x)).map((x) => WEEKDAY_ABBR[x]).join(', ');
+  if (set.size === 7) return t('days.everyDay');
+  if (set.size === 5 && [1, 2, 3, 4, 5].every((x) => set.has(x))) return t('days.weekdays');
+  if (set.size === 2 && set.has(0) && set.has(6)) return t('days.weekends');
+  return WEEKDAY_ORDER
+    .filter((x) => set.has(x))
+    .map((x) => weekdayAbbr[WEEKDAY_ORDER.indexOf(x)])
+    .join(t('common.listSep'));
 };
 
 export default function Ledger() {
   const { theme, themeId, setThemeId, themes } = useTheme();
+  const { t, locale, weekdayLetters, weekdayAbbr } = useLang();
   const [loading, setLoading] = useState(true);
   const [goals, setGoals] = useState([]);
   const [recurring, setRecurring] = useState([]);
@@ -130,11 +172,11 @@ export default function Ledger() {
 
       if (rateLimited) {
         writesLocked.current = true;
-        setStorageError("Couldn't load your data — the connection to the server failed. Your data is safe; it just didn't load. Check your connection and refresh. Don't add anything until this clears, or it could overwrite what didn't load.");
+        setStorageError(t('error.loadFailed'));
         return;
       }
       if (!storage || typeof storage.set !== 'function') {
-        setStorageError('Storage is unavailable — check your Supabase configuration and that you are signed in.');
+        setStorageError(t('error.storageUnavailable'));
         return;
       }
 
@@ -143,7 +185,10 @@ export default function Ledger() {
 
   const reportStorageError = (label, e) => {
     console.error(`${label} failed`, e);
-    setStorageError(`Saving isn't working (${label}). Your changes are only held temporarily and will be lost on refresh. ${e && e.message ? e.message : 'The storage backend rejected the write.'}`);
+    setStorageError(t('error.saveFailed', {
+      label: t(label),
+      detail: e && e.message ? e.message : t('error.writeRejected'),
+    }));
   };
   const persist = async (key, value, label) => {
     if (writesLocked.current) {
@@ -151,7 +196,7 @@ export default function Ledger() {
       return;
     }
     if (typeof window === 'undefined' || !storage || typeof storage.set !== 'function') {
-      reportStorageError(label, new Error('storage is unavailable on this page.'));
+      reportStorageError(label, new Error(t('error.unavailableOnPage')));
       return;
     }
     const attempts = 4;
@@ -159,7 +204,7 @@ export default function Ledger() {
       try {
         const result = await storage.set(key, value, false);
         if (result === null || result === undefined) {
-          reportStorageError(label, new Error('The write returned no confirmation — it likely did not save.'));
+          reportStorageError(label, new Error(t('error.noConfirmation')));
         } else {
           setStorageError(null);
         }
@@ -177,15 +222,15 @@ export default function Ledger() {
 
   const saveGoals = async (next) => {
     setGoals(next);
-    await persist('goals', JSON.stringify(next), 'goals');
+    await persist('goals', JSON.stringify(next), 'error.label.goals');
   };
   const saveRecurring = async (next) => {
     setRecurring(next);
-    await persist('recurring-tasks', JSON.stringify(next), 'recurring tasks');
+    await persist('recurring-tasks', JSON.stringify(next), 'error.label.recurring');
   };
   const savePresets = async (next) => {
     setPresets(next);
-    await persist('presets', JSON.stringify(next), 'presets');
+    await persist('presets', JSON.stringify(next), 'error.label.presets');
   };
   const flushDays = useCallback(async () => {
     if (daysFlushTimer.current) {
@@ -193,7 +238,7 @@ export default function Ledger() {
       daysFlushTimer.current = null;
     }
     const snapshot = latestDays.current;
-    await persist('all-days', JSON.stringify(snapshot), 'day data');
+    await persist('all-days', JSON.stringify(snapshot), 'error.label.days');
   }, []);
   const saveDay = (dateStr, next) => {
     const updated = { ...latestDays.current, [dateStr]: next };
@@ -292,8 +337,8 @@ export default function Ledger() {
   // The only way out, now that a device stays signed in indefinitely.
   const signOut = () => {
     setConfirmDialog({
-      message: "Sign out on this device? You'll need a fresh code from your email to get back in.",
-      confirmLabel: 'Sign out',
+      message: t('account.signOutConfirm'),
+      confirmLabel: t('account.signOut'),
       onConfirm: async () => {
         // Day writes are debounced, so flush anything pending before the session
         // goes away and the write would be rejected.
@@ -324,7 +369,7 @@ export default function Ledger() {
 
   const deleteRecurringEntirely = (taskId) => {
     setConfirmDialog({
-      message: 'Delete this repeating task? It will disappear from every day, including past history.',
+      message: t('task.deleteRepeatingConfirm'),
       onConfirm: () => saveRecurring(recurring.filter((r) => r.id !== taskId)),
     });
   };
@@ -430,7 +475,7 @@ export default function Ledger() {
       const backup = { exportedAt: new Date().toISOString(), goals, recurring, presets, days: latestDays.current };
       setExportJson(JSON.stringify(backup, null, 2));
     } catch (e) {
-      setExportJson('Export failed — try again.');
+      setExportJson(t('backup.exportFailed'));
     }
   };
 
@@ -451,9 +496,9 @@ export default function Ledger() {
   const copyExport = async () => {
     try {
       await navigator.clipboard.writeText(exportJson);
-      setCopyStatus('Copied');
+      setCopyStatus(t('backup.copied'));
     } catch (e) {
-      setCopyStatus('Select the text above and copy manually');
+      setCopyStatus(t('backup.copyManually'));
     }
     setTimeout(() => setCopyStatus(''), 2500);
   };
@@ -463,12 +508,12 @@ export default function Ledger() {
     try {
       parsed = JSON.parse(importText);
     } catch (e) {
-      setImportStatus("That doesn't look like valid backup JSON.");
+      setImportStatus(t('backup.invalidJson'));
       return;
     }
     setConfirmDialog({
-      message: 'Restore this backup? It will overwrite your current goals, tasks, and history.',
-      confirmLabel: 'Restore',
+      message: t('backup.restoreConfirm'),
+      confirmLabel: t('common.restore'),
       onConfirm: async () => {
         try {
           if (Array.isArray(parsed.goals)) await saveGoals(parsed.goals);
@@ -483,7 +528,7 @@ export default function Ledger() {
           setImportText('');
           setShowImportModal(false);
         } catch (e) {
-          setImportStatus('Restore failed partway through — some data may not have been saved.');
+          setImportStatus(t('backup.restoreFailed'));
         }
       },
     });
@@ -510,7 +555,7 @@ export default function Ledger() {
   };
   const deleteGoal = (id) => {
     setConfirmDialog({
-      message: 'Delete this goal? Its repeating tasks and presets stay, just without a goal label.',
+      message: t('manage.goalDeleteConfirm'),
       onConfirm: () => {
         saveGoals(goals.filter((g) => g.id !== id));
         if (activeGoalFilter === id) setActiveGoalFilter(null);
@@ -550,14 +595,14 @@ export default function Ledger() {
     return (a.time || '99:99').localeCompare(b.time || '99:99');
   });
   const selDate = fromDateStr(selectedDateStr);
-  const dateHeadline = `${WEEKDAY_NAMES[selDate.getDay()]}, ${selDate.getDate()} ${MONTH_NAMES[selDate.getMonth()]}`;
+  const dateHeadline = formatHeadline(selDate, locale);
 
   // Progress for the bar. Counted from `tasks` rather than `rawTasks` so the bar
   // follows the active goal filter — filter to one goal and you see that goal's
   // ratio, which is what you're looking at on screen.
   const doneCount = tasks.filter((t) => dayCompleted[t.id]).length;
   const activeGoalName = activeGoalFilter
-    ? (activeGoalFilter === NO_GOAL_ID ? 'Others' : (goalById(activeGoalFilter) || {}).name)
+    ? (activeGoalFilter === NO_GOAL_ID ? t('common.others') : (goalById(activeGoalFilter) || {}).name)
     : null;
 
   // The mascot in the header reflects the day: asleep with nothing to do, pleased
@@ -592,8 +637,8 @@ export default function Ledger() {
   if (loading) {
     return (
       <div className="dt-loading">
-        <Mascot size={56} mood="idle" />
-        <div>Loading your ledger…</div>
+        <Mascot size={56} mood="idle" label={t(theme.ariaKey)} />
+        <div>{t('auth.loading')}</div>
       </div>
     );
   }
@@ -603,23 +648,23 @@ export default function Ledger() {
       <div className="dt-container">
         {storageError && (
           <div className="dt-storage-warning">
-            <strong>⚠ Not saving</strong>
+            <strong>⚠ {t('error.notSaving')}</strong>
             <div style={{ marginTop: 4 }}>{storageError}</div>
-            <div style={{ marginTop: 6, fontSize: 11, opacity: 0.85 }}>Use Export in Manage to copy your data out before you lose it.</div>
+            <div style={{ marginTop: 6, fontSize: 11, opacity: 0.85 }}>{t('error.exportFirst')}</div>
           </div>
         )}
         <div className="dt-header">
           <div className="dt-topbar">
             <div className="dt-brand">
               <div className={`dt-header-mascot ${dayMood === 'cheer' ? 'cheer' : ''}`}>
-                <Mascot size={38} mood={dayMood} />
+                <Mascot size={38} mood={dayMood} label={t(theme.ariaKey)} />
               </div>
               <div>
-                <div className="dt-wordmark">Ledger</div>
-                <div className="dt-tagline">a page for every day</div>
+                <div className="dt-wordmark">{t('app.name')}</div>
+                <div className="dt-tagline">{t('app.tagline')}</div>
               </div>
             </div>
-            <button className="dt-settings-btn" title="Manage" onClick={() => { setManageGoalId(null); setShowAddGoalInManage(false); setIconPickerGoalId(null); setShowManage(true); }}>
+            <button className="dt-settings-btn" title={t('manage.title')} onClick={() => { setManageGoalId(null); setShowAddGoalInManage(false); setIconPickerGoalId(null); setShowManage(true); }}>
               <Settings size={20} />
             </button>
           </div>
@@ -654,7 +699,7 @@ export default function Ledger() {
               onClick={() => setActiveGoalFilter(activeGoalFilter === NO_GOAL_ID ? null : NO_GOAL_ID)}
             >
               <span className="dt-goal-dot" style={{ background: activeGoalFilter === NO_GOAL_ID ? 'var(--paper)' : NO_GOAL_COLOR }} />
-              Others
+              {t('common.others')}
               {goalProgress[NO_GOAL_ID] && (
                 <span className="dt-goal-count">{goalProgress[NO_GOAL_ID].done}/{goalProgress[NO_GOAL_ID].total}</span>
               )}
@@ -665,7 +710,7 @@ export default function Ledger() {
             <div className="dt-date-headline" onClick={() => setShowCalendar(true)}>{dateHeadline}</div>
             {selectedDateStr !== todayStr && (
               <button className="dt-today-btn" onClick={() => setSelectedDateStr(todayStr)}>
-                <CalendarDays size={12} /> Today
+                <CalendarDays size={12} /> {t('common.today')}
               </button>
             )}
           </div>
@@ -689,7 +734,7 @@ export default function Ledger() {
                   className={`dt-day-tab ${ds === selectedDateStr ? 'selected' : ''} ${ds === todayStr ? 'today' : ''}`}
                   onClick={() => setSelectedDateStr(ds)}
                 >
-                  <span className="letter">{WEEKDAY_LETTERS[i]}</span>
+                  <span className="letter">{weekdayLetters[i]}</span>
                   <span className="num">{fromDateStr(ds).getDate()}</span>
                   <span
                     className={`dt-tab-indicator ${allComplete ? 'complete' : hasTasks ? 'has-tasks' : ''}`}
@@ -710,27 +755,30 @@ export default function Ledger() {
           {tasks.length === 0 && (
             <div className="dt-empty-state">
               <div className="dt-empty-mascot">
-                <Mascot size={76} mood="sleepy" />
+                <Mascot size={76} mood="sleepy" label={t(theme.ariaKey)} />
               </div>
-              <div className="headline">Nothing on the page yet</div>
-              <div>Add what needs doing on {dateHeadline}.</div>
+              <div className="headline">{t('task.emptyHeadline')}</div>
+              <div>{t('task.emptyBody', { date: dateHeadline })}</div>
             </div>
           )}
 
-          {sortedTasks.map((t) => (
+          {/* `task`, not `t` — `t` is the translate function in this scope. */}
+          {sortedTasks.map((task) => (
             <TaskRow
-              key={t.id}
-              task={t}
-              goal={goalById(t.goalId)}
-              completed={!!dayCompleted[t.id]}
-              menuOpen={openMenuTaskId === t.id}
-              onToggleMenu={() => setOpenMenuTaskId(openMenuTaskId === t.id ? null : t.id)}
+              key={task.id}
+              task={task}
+              t={t}
+              locale={locale}
+              goal={goalById(task.goalId)}
+              completed={!!dayCompleted[task.id]}
+              menuOpen={openMenuTaskId === task.id}
+              onToggleMenu={() => setOpenMenuTaskId(openMenuTaskId === task.id ? null : task.id)}
               onCloseMenu={() => setOpenMenuTaskId(null)}
-              onToggleComplete={() => toggleComplete(selectedDateStr, t.id)}
-              onEdit={() => openEditTask(t, t.carriedFrom ? { dateStr: t.carriedFrom } : {})}
-              onSkipToday={() => skipToday(selectedDateStr, t.id)}
-              onStopRepeating={() => stopRepeating(t.id)}
-              onDelete={() => deleteOneOff(selectedDateStr, t.id)}
+              onToggleComplete={() => toggleComplete(selectedDateStr, task.id)}
+              onEdit={() => openEditTask(task, task.carriedFrom ? { dateStr: task.carriedFrom } : {})}
+              onSkipToday={() => skipToday(selectedDateStr, task.id)}
+              onStopRepeating={() => stopRepeating(task.id)}
+              onDelete={() => deleteOneOff(selectedDateStr, task.id)}
             />
           ))}
         </div>
@@ -742,6 +790,9 @@ export default function Ledger() {
         <CalendarPicker
           selectedDateStr={selectedDateStr}
           todayStr={todayStr}
+          locale={locale}
+          t={t}
+          weekdayLetters={weekdayLetters}
           onSelect={(ds) => { setSelectedDateStr(ds); setShowCalendar(false); }}
           onClose={() => setShowCalendar(false)}
         />
@@ -752,12 +803,12 @@ export default function Ledger() {
           <div className="dt-modal-sheet" onClick={(e) => e.stopPropagation()}>
             <div style={{ fontSize: 15, color: 'var(--ink)', marginBottom: 20, lineHeight: 1.4 }}>{confirmDialog.message}</div>
             <div className="dt-modal-actions">
-              <button className="dt-btn-secondary" onClick={() => setConfirmDialog(null)}>Cancel</button>
+              <button className="dt-btn-secondary" onClick={() => setConfirmDialog(null)}>{t('common.cancel')}</button>
               <button
                 className="dt-btn-primary"
                 style={{ background: 'var(--brick)' }}
                 onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }}
-              >{confirmDialog.confirmLabel || 'Delete'}</button>
+              >{confirmDialog.confirmLabel || t('common.delete')}</button>
             </div>
           </div>
         </div>
@@ -767,10 +818,10 @@ export default function Ledger() {
         <div className="dt-modal-overlay" onClick={() => setShowExportModal(false)}>
           <div className="dt-modal-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="dt-modal-title">
-              Export backup
+              {t('backup.exportTitle')}
               <button className="dt-icon-btn" onClick={() => setShowExportModal(false)}><X size={20} /></button>
             </div>
-            <div className="dt-hint" style={{ marginTop: 0 }}>Save this somewhere safe — a notes app, email to yourself, wherever. You can restore it later from here.</div>
+            <div className="dt-hint" style={{ marginTop: 0 }}>{t('backup.exportHint')}</div>
             <textarea
               className="dt-backup-textarea"
               readOnly
@@ -779,8 +830,8 @@ export default function Ledger() {
               style={{ marginBottom: 14 }}
             />
             <div className="dt-modal-actions">
-              <button className="dt-btn-secondary" onClick={copyExport}>{copyStatus || 'Copy text'}</button>
-              <button className="dt-btn-primary" onClick={downloadExport}>Download file</button>
+              <button className="dt-btn-secondary" onClick={copyExport}>{copyStatus || t('backup.copyText')}</button>
+              <button className="dt-btn-primary" onClick={downloadExport}>{t('backup.downloadFile')}</button>
             </div>
           </div>
         </div>
@@ -790,21 +841,21 @@ export default function Ledger() {
         <div className="dt-modal-overlay" onClick={() => setShowImportModal(false)}>
           <div className="dt-modal-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="dt-modal-title">
-              Restore from backup
+              {t('backup.restoreTitle')}
               <button className="dt-icon-btn" onClick={() => setShowImportModal(false)}><X size={20} /></button>
             </div>
-            <div className="dt-hint" style={{ marginTop: 0 }}>Paste the contents of a previously exported backup below.</div>
+            <div className="dt-hint" style={{ marginTop: 0 }}>{t('backup.restoreHint')}</div>
             <textarea
               className="dt-backup-textarea"
               value={importText}
               onChange={(e) => setImportText(e.target.value)}
-              placeholder="Paste backup JSON here"
+              placeholder={t('backup.pastePlaceholder')}
               style={{ height: 140, marginBottom: 10 }}
             />
             {importStatus && <div className="dt-hint" style={{ marginTop: 0, color: 'var(--brick)' }}>{importStatus}</div>}
             <div className="dt-modal-actions">
-              <button className="dt-btn-secondary" onClick={() => setShowImportModal(false)}>Cancel</button>
-              <button className="dt-btn-primary" onClick={restoreFromBackup}>Restore</button>
+              <button className="dt-btn-secondary" onClick={() => setShowImportModal(false)}>{t('common.cancel')}</button>
+              <button className="dt-btn-primary" onClick={restoreFromBackup}>{t('common.restore')}</button>
             </div>
           </div>
         </div>
@@ -814,16 +865,16 @@ export default function Ledger() {
         <div className="dt-modal-overlay" onClick={() => setModal(null)}>
           <div className="dt-modal-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="dt-modal-title">
-              {modal.mode === 'add' ? 'New task' : 'Edit task'}
+              {modal.mode === 'add' ? t('task.new') : t('task.edit')}
               <button className="dt-icon-btn" onClick={() => setModal(null)}><X size={20} /></button>
             </div>
 
             <div className="dt-field">
-              <label className="dt-field-label">Task</label>
+              <label className="dt-field-label">{t('task.label')}</label>
               <input
                 autoFocus
                 className="dt-input"
-                placeholder="What needs doing?"
+                placeholder={t('task.placeholder')}
                 value={modal.form.name}
                 onChange={(e) => setModal({ ...modal, form: { ...modal.form, name: e.target.value } })}
               />
@@ -831,21 +882,21 @@ export default function Ledger() {
 
             {!(modal.mode === 'add' && modal.lockRepeats) && (
               <div className="dt-field">
-                <label className="dt-field-label">Repeats</label>
+                <label className="dt-field-label">{t('task.repeatsLabel')}</label>
                 {modal.mode === 'add' ? (
                   <div className="dt-segmented">
                     <button
                       className={`dt-segmented-btn ${!modal.form.repeats ? 'active' : ''}`}
                       onClick={() => setModal({ ...modal, form: { ...modal.form, repeats: false } })}
-                    >{modal.presetMode ? 'One-off' : 'Just today'}</button>
+                    >{modal.presetMode ? t('task.oneOff') : t('task.justToday')}</button>
                     <button
                       className={`dt-segmented-btn ${modal.form.repeats ? 'active' : ''}`}
                       onClick={() => setModal({ ...modal, form: { ...modal.form, repeats: true } })}
-                    >{modal.presetMode ? 'Repeated' : 'Repeats'}</button>
+                    >{modal.presetMode ? t('task.repeated') : t('task.repeats')}</button>
                   </div>
                 ) : (
                   <div className="dt-hint" style={{ marginTop: 0 }}>
-                    {modal.form.repeats ? 'Repeating task — delete and re-add to change to one-off.' : 'One-off — delete and re-add to change to repeating.'}
+                    {modal.form.repeats ? t('task.lockedRepeating') : t('task.lockedOneOff')}
                   </div>
                 )}
               </div>
@@ -853,11 +904,11 @@ export default function Ledger() {
 
             {modal.form.repeats && (
               <div className="dt-field">
-                <label className="dt-field-label">On which days</label>
+                <label className="dt-field-label">{t('task.whichDays')}</label>
                 <div className="dt-preset-row">
-                  <button className="dt-preset-btn" onClick={() => setModal({ ...modal, form: { ...modal.form, days: [...ALL_DAYS] } })}>Every day</button>
-                  <button className="dt-preset-btn" onClick={() => setModal({ ...modal, form: { ...modal.form, days: [1, 2, 3, 4, 5] } })}>Weekdays</button>
-                  <button className="dt-preset-btn" onClick={() => setModal({ ...modal, form: { ...modal.form, days: [0, 6] } })}>Weekends</button>
+                  <button className="dt-preset-btn" onClick={() => setModal({ ...modal, form: { ...modal.form, days: [...ALL_DAYS] } })}>{t('days.everyDay')}</button>
+                  <button className="dt-preset-btn" onClick={() => setModal({ ...modal, form: { ...modal.form, days: [1, 2, 3, 4, 5] } })}>{t('days.weekdays')}</button>
+                  <button className="dt-preset-btn" onClick={() => setModal({ ...modal, form: { ...modal.form, days: [0, 6] } })}>{t('days.weekends')}</button>
                 </div>
                 <div className="dt-day-chips">
                   {WEEKDAY_ORDER.map((dow, i) => (
@@ -865,21 +916,21 @@ export default function Ledger() {
                       key={dow}
                       className={`dt-day-chip ${modal.form.days.includes(dow) ? 'active' : ''}`}
                       onClick={() => toggleFormDay(dow)}
-                    >{WEEKDAY_LETTERS[i]}</button>
+                    >{weekdayLetters[i]}</button>
                   ))}
                 </div>
                 {modal.mode === 'edit' && (
-                  <div className="dt-hint" style={{ marginTop: 10 }}>Editing this updates it everywhere it appears, including past days.</div>
+                  <div className="dt-hint" style={{ marginTop: 10 }}>{t('task.editAffectsAll')}</div>
                 )}
               </div>
             )}
 
             {modal.form.repeats && (
               <div className="dt-field">
-                <label className="dt-field-label">Active dates</label>
+                <label className="dt-field-label">{t('task.activeDates')}</label>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <div style={{ flex: 1 }}>
-                    <div className="dt-subfield-label">Starts</div>
+                    <div className="dt-subfield-label">{t('task.starts')}</div>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <input
                         type="date"
@@ -894,7 +945,7 @@ export default function Ledger() {
                     </div>
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div className="dt-subfield-label">Ends</div>
+                    <div className="dt-subfield-label">{t('task.ends')}</div>
                     <div style={{ display: 'flex', gap: 4 }}>
                       <input
                         type="date"
@@ -909,21 +960,21 @@ export default function Ledger() {
                     </div>
                   </div>
                 </div>
-                <div className="dt-hint" style={{ marginTop: 8, marginBottom: 0 }}>Leave either blank — starts today, or repeats with no end.</div>
+                <div className="dt-hint" style={{ marginTop: 8, marginBottom: 0 }}>{t('task.datesHint')}</div>
               </div>
             )}
 
             <div className="dt-field">
-              <label className="dt-field-label">Time</label>
+              <label className="dt-field-label">{t('task.time')}</label>
               <div className="dt-segmented" style={{ marginBottom: modal.form.hasTime ? 10 : 0 }}>
                 <button
                   className={`dt-segmented-btn ${!modal.form.hasTime ? 'active' : ''}`}
                   onClick={() => setModal({ ...modal, form: { ...modal.form, hasTime: false } })}
-                >Any time</button>
+                >{t('task.anyTime')}</button>
                 <button
                   className={`dt-segmented-btn ${modal.form.hasTime ? 'active' : ''}`}
                   onClick={() => setModal({ ...modal, form: { ...modal.form, hasTime: true } })}
-                >Set a time</button>
+                >{t('task.setTime')}</button>
               </div>
               {modal.form.hasTime && (
                 <input
@@ -936,12 +987,12 @@ export default function Ledger() {
             </div>
 
             <div className="dt-field">
-              <label className="dt-field-label">Goal</label>
+              <label className="dt-field-label">{t('task.goal')}</label>
               <div className="dt-goal-picker">
                 <div
                   className={`dt-goal-option ${modal.form.goalId === null ? 'active' : ''}`}
                   onClick={() => setModal({ ...modal, form: { ...modal.form, goalId: null } })}
-                >Others</div>
+                >{t('common.others')}</div>
                 {goals.map((g) => {
                   const picked = modal.form.goalId === g.id;
                   return (
@@ -964,7 +1015,7 @@ export default function Ledger() {
 
             {!modal.presetMode && modal.mode === 'add' && !modal.form.repeats && modal.form.goalId && presets.filter((p) => p.goalId === modal.form.goalId).length > 0 && (
               <div className="dt-field">
-                <label className="dt-field-label">Quick add from {goalById(modal.form.goalId)?.name}</label>
+                <label className="dt-field-label">{t('task.quickAdd', { goal: goalById(modal.form.goalId)?.name })}</label>
                 <div className="dt-goal-picker">
                   {presets.filter((p) => p.goalId === modal.form.goalId).map((p) => (
                     <div
@@ -986,7 +1037,7 @@ export default function Ledger() {
                   checked={modal.form.carryOver}
                   onChange={(e) => setModal({ ...modal, form: { ...modal.form, carryOver: e.target.checked } })}
                 />
-                Keep until complete
+                {t('task.keepUntilComplete')}
               </label>
             )}
 
@@ -997,13 +1048,13 @@ export default function Ledger() {
                   checked={modal.form.saveAsPreset}
                   onChange={(e) => setModal({ ...modal, form: { ...modal.form, saveAsPreset: e.target.checked } })}
                 />
-                Also save as a preset{modal.form.goalId ? ` under ${goalById(modal.form.goalId)?.name}` : ' under Others'}
+                {t('task.saveAsPreset', { goal: modal.form.goalId ? goalById(modal.form.goalId)?.name : t('common.others') })}
               </label>
             )}
 
             <div className="dt-modal-actions">
-              <button className="dt-btn-secondary" onClick={() => setModal(null)}>Cancel</button>
-              <button className="dt-btn-primary" onClick={saveTask}>Save</button>
+              <button className="dt-btn-secondary" onClick={() => setModal(null)}>{t('common.cancel')}</button>
+              <button className="dt-btn-primary" onClick={saveTask}>{t('common.save')}</button>
             </div>
           </div>
         </div>
@@ -1013,13 +1064,13 @@ export default function Ledger() {
         <div className="dt-manage-panel" onClick={() => setShowManage(false)}>
           <div className="dt-manage-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="dt-modal-title">
-              Manage
+              {t('manage.title')}
               <button className="dt-icon-btn" onClick={() => setShowManage(false)}><X size={20} /></button>
             </div>
 
             {!manageGoalId && (
               <>
-                {goals.length === 0 && <div className="dt-empty-manage">No goals yet.</div>}
+                {goals.length === 0 && <div className="dt-empty-manage">{t('manage.noGoals')}</div>}
                 {goals.map((g) => {
                   const done = goalIsDone(g.id);
                   return (
@@ -1029,7 +1080,7 @@ export default function Ledger() {
                           className="dt-goal-badge-btn"
                           style={{ background: g.color }}
                           onClick={() => cycleGoalColor(g.id)}
-                          title="Tap to change colour"
+                          title={t('manage.changeColour')}
                         >
                           <GoalIcon icon={g.icon} size={13} color="currentColor" />
                         </button>
@@ -1046,28 +1097,28 @@ export default function Ledger() {
                           <div className="dt-goal-name-text" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }} onClick={() => setManageGoalId(g.id)}>
                             <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               {g.name}
-                              {done && <span className="dt-done-badge"><Check size={10} strokeWidth={3} /> Done</span>}
+                              {done && <span className="dt-done-badge"><Check size={10} strokeWidth={3} /> {t('common.done')}</span>}
                             </span>
                             <ChevronRight size={16} color="var(--muted)" />
                           </div>
                         )}
                         <button
                           className="dt-icon-btn"
-                          title="Pick an icon"
+                          title={t('manage.pickIcon')}
                           onClick={() => setIconPickerGoalId(iconPickerGoalId === g.id ? null : g.id)}
                         >
                           <Smile size={16} />
                         </button>
-                        <button className="dt-icon-btn" title="Rename" onClick={() => startEditGoalName(g)}><Pencil size={15} /></button>
-                        <button className="dt-icon-btn danger" title="Delete" onClick={() => deleteGoal(g.id)}><Trash2 size={16} /></button>
+                        <button className="dt-icon-btn" title={t('manage.rename')} onClick={() => startEditGoalName(g)}><Pencil size={15} /></button>
+                        <button className="dt-icon-btn danger" title={t('common.delete')} onClick={() => deleteGoal(g.id)}><Trash2 size={16} /></button>
                       </div>
                       {iconPickerGoalId === g.id && (
                         <div className="dt-icon-grid" style={{ padding: '10px 0 12px' }}>
-                          {GOAL_ICONS.map(({ id, label, Icon }) => (
+                          {GOAL_ICONS.map(({ id, Icon }) => (
                             <button
                               key={id}
                               className={`dt-icon-option ${g.icon === id ? 'active' : ''}`}
-                              title={label}
+                              title={t(`goalIcon.${id}`)}
                               onClick={() => setGoalIcon(g.id, id)}
                             >
                               <Icon size={16} strokeWidth={2.2} />
@@ -1082,7 +1133,7 @@ export default function Ledger() {
                 <div className="dt-goal-edit-row" style={{ marginTop: 8 }}>
                   <span style={{ width: 18, height: 18, borderRadius: '50%', background: NO_GOAL_COLOR, display: 'inline-block', flexShrink: 0 }} />
                   <div className="dt-goal-name-text" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }} onClick={() => setManageGoalId(NO_GOAL_ID)}>
-                    <span>Others</span>
+                    <span>{t('common.others')}</span>
                     <ChevronRight size={16} color="var(--muted)" />
                   </div>
                 </div>
@@ -1092,7 +1143,7 @@ export default function Ledger() {
                     <input
                       autoFocus
                       className="dt-input"
-                      placeholder="New goal name"
+                      placeholder={t('manage.newGoalName')}
                       value={newGoalName}
                       onChange={(e) => setNewGoalName(e.target.value)}
                       onKeyDown={(e) => { if (e.key === 'Enter') addGoal(); if (e.key === 'Escape') { setShowAddGoalInManage(false); setNewGoalName(''); } }}
@@ -1101,31 +1152,37 @@ export default function Ledger() {
                   </div>
                 ) : (
                   <button className="dt-preset-btn" style={{ width: '100%', marginTop: 12, padding: '10px' }} onClick={() => setShowAddGoalInManage(true)}>
-                    <Plus size={14} /> Add goal
+                    <Plus size={14} /> {t('manage.addGoal')}
                   </button>
                 )}
 
                 <div className="dt-manage-section">
-                  <div className="dt-field-label" style={{ marginBottom: 10 }}>Appearance</div>
+                  <div className="dt-field-label" style={{ marginBottom: 10 }}>{t('manage.language')}</div>
+                  <LanguagePicker />
+                </div>
+
+                <div className="dt-manage-section">
+                  <div className="dt-field-label" style={{ marginBottom: 10 }}>{t('manage.appearance')}</div>
                   <div className="dt-theme-grid">
-                    {themes.map((t) => {
-                      const ThemeMascot = t.Mascot;
-                      const active = t.id === themeId;
+                    {/* `th`, not `t` — `t` is the translate function in this scope. */}
+                    {themes.map((th) => {
+                      const ThemeMascot = th.Mascot;
+                      const active = th.id === themeId;
                       return (
                         <button
-                          key={t.id}
+                          key={th.id}
                           className={`dt-theme-card ${active ? 'active' : ''}`}
-                          onClick={() => setThemeId(t.id)}
+                          onClick={() => setThemeId(th.id)}
                         >
-                          <ThemeMascot size={40} mood={active ? 'cheer' : 'idle'} />
+                          <ThemeMascot size={40} mood={active ? 'cheer' : 'idle'} label={t(th.ariaKey)} />
                           <div className="dt-theme-card-body">
                             <div className="dt-theme-name">
-                              {t.name}
+                              {t(th.nameKey)}
                               {active && <Check size={12} strokeWidth={3} color="var(--moss)" />}
                             </div>
-                            <div className="dt-theme-blurb">{t.blurb}</div>
+                            <div className="dt-theme-blurb">{t(th.blurbKey)}</div>
                             <div className="dt-theme-swatches">
-                              {t.swatches.map((c) => (
+                              {th.swatches.map((c) => (
                                 <span key={c} className="dt-theme-swatch" style={{ background: c }} />
                               ))}
                             </div>
@@ -1137,28 +1194,28 @@ export default function Ledger() {
                 </div>
 
                 <div className="dt-manage-section">
-                  <div className="dt-field-label" style={{ marginBottom: 10 }}>Backup</div>
+                  <div className="dt-field-label" style={{ marginBottom: 10 }}>{t('manage.backup')}</div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button className="dt-preset-btn" style={{ flex: 1, padding: '10px' }} onClick={openExportModal}>
-                      <Download size={14} /> Export
+                      <Download size={14} /> {t('backup.export')}
                     </button>
                     <button className="dt-preset-btn" style={{ flex: 1, padding: '10px' }} onClick={() => { setImportText(''); setImportStatus(''); setShowImportModal(true); }}>
-                      <Upload size={14} /> Restore
+                      <Upload size={14} /> {t('backup.restore')}
                     </button>
                   </div>
                 </div>
 
                 <div className="dt-manage-section">
-                  <div className="dt-field-label" style={{ marginBottom: 10 }}>Account</div>
+                  <div className="dt-field-label" style={{ marginBottom: 10 }}>{t('manage.account')}</div>
                   <PasswordSetting />
                   <div className="dt-hint" style={{ margin: '8px 0 12px' }}>
-                    Set this once and you can sign in on any device without waiting for an email.
+                    {t('password.hint')}
                   </div>
                   <button className="dt-preset-btn danger" style={{ width: '100%', padding: '10px' }} onClick={signOut}>
-                    <LogOut size={14} /> Sign out
+                    <LogOut size={14} /> {t('account.signOut')}
                   </button>
                   <div className="dt-hint" style={{ margin: '8px 0 0' }}>
-                    This device stays signed in until you sign out here.
+                    {t('account.signOutHint')}
                   </div>
                 </div>
               </>
@@ -1166,8 +1223,11 @@ export default function Ledger() {
 
             {manageGoalId && (
               <GoalDetail
-                goal={manageGoalId === NO_GOAL_ID ? { id: null, name: 'Others', color: NO_GOAL_COLOR } : goalById(manageGoalId)}
+                goal={manageGoalId === NO_GOAL_ID ? { id: null, name: t('common.others'), color: NO_GOAL_COLOR } : goalById(manageGoalId)}
                 isNoGoal={manageGoalId === NO_GOAL_ID}
+                t={t}
+                locale={locale}
+                weekdayAbbr={weekdayAbbr}
                 done={manageGoalId !== NO_GOAL_ID && goalIsDone(manageGoalId)}
                 todayStr={todayStr}
                 recurringTasks={recurring.filter((r) => (r.goalId || null) === manageFilterGoalId && (!r.endDate || r.endDate >= todayStr))}
@@ -1208,7 +1268,7 @@ export default function Ledger() {
   );
 }
 
-function CalendarPicker({ selectedDateStr, todayStr, onSelect, onClose }) {
+function CalendarPicker({ selectedDateStr, todayStr, locale, t, weekdayLetters, onSelect, onClose }) {
   const [viewMonth, setViewMonth] = useState(() => {
     const d = fromDateStr(selectedDateStr);
     return new Date(d.getFullYear(), d.getMonth(), 1);
@@ -1223,15 +1283,15 @@ function CalendarPicker({ selectedDateStr, todayStr, onSelect, onClose }) {
     <div className="dt-calendar-overlay" onClick={onClose}>
       <div className="dt-calendar-sheet" onClick={(e) => e.stopPropagation()}>
         <div className="dt-cal-header">
-          <div className="dt-cal-month">{MONTH_NAMES[viewMonth.getMonth()]} {viewMonth.getFullYear()}</div>
+          <div className="dt-cal-month">{formatMonthYear(viewMonth, locale)}</div>
           <div className="dt-cal-nav">
             <button className="dt-cal-arrow" onClick={() => shiftMonth(-1)}><ChevronLeft size={20} /></button>
             <button className="dt-cal-arrow" onClick={() => shiftMonth(1)}><ChevronRight size={20} /></button>
-            <button className="dt-cal-today-link" onClick={() => onSelect(todayStr)}>Today</button>
+            <button className="dt-cal-today-link" onClick={() => onSelect(todayStr)}>{t('common.today')}</button>
           </div>
         </div>
         <div className="dt-cal-weekdays">
-          {WEEKDAY_LETTERS.map((l, i) => <div key={i} className="dt-cal-weekday">{l}</div>)}
+          {weekdayLetters.map((l, i) => <div key={i} className="dt-cal-weekday">{l}</div>)}
         </div>
         <div className="dt-cal-grid">
           {cells.map((cell) => {
@@ -1256,17 +1316,14 @@ function CalendarPicker({ selectedDateStr, todayStr, onSelect, onClose }) {
 }
 
 function GoalDetail({
-  goal, isNoGoal, done, todayStr, recurringTasks, dayTaskRows, presetTasks, findMatchingPreset, onTogglePresetForTask, onToggleTaskComplete,
+  goal, isNoGoal, done, todayStr, t, locale, weekdayAbbr, recurringTasks, dayTaskRows, presetTasks, findMatchingPreset, onTogglePresetForTask, onToggleTaskComplete,
   openMenuTaskId, onToggleRowMenu, onCloseRowMenu, onEditTaskInstance, onDeleteTaskInstance,
   editingGoalId, editingGoalName, setEditingGoalName,
   onBack, onCycleColor, onStartRename, onCommitRename, onCancelRename,
   onEditRecurring, onDeleteRecurring,
   onEditPreset, onDeletePreset, onAddPreset,
 }) {
-  const shortDate = (ds) => {
-    const d = fromDateStr(ds);
-    return `${MONTH_NAMES[d.getMonth()].slice(0, 3)} ${d.getDate()}`;
-  };
+  const shortDate = (ds) => formatShortDate(fromDateStr(ds), locale);
   const unlistedPresets = presetTasks.filter(
     (p) => !dayTaskRows.some((row) => row.name === p.name && (row.time || null) === (p.time || null))
   );
@@ -1278,7 +1335,7 @@ function GoalDetail({
         {isNoGoal ? (
           <span className="dt-goal-badge-btn" style={{ background: goal.color }} />
         ) : (
-          <button className="dt-goal-badge-btn" style={{ background: goal.color }} onClick={onCycleColor} title="Tap to change colour">
+          <button className="dt-goal-badge-btn" style={{ background: goal.color }} onClick={onCycleColor} title={t('manage.changeColour')}>
             <GoalIcon icon={goal.icon} size={14} color="currentColor" />
           </button>
         )}
@@ -1299,11 +1356,11 @@ function GoalDetail({
             onClick={isNoGoal ? undefined : onStartRename}
           >{goal.name}</div>
         )}
-        {done && <span className="dt-done-badge"><Check size={10} strokeWidth={3} /> Done</span>}
+        {done && <span className="dt-done-badge"><Check size={10} strokeWidth={3} /> {t('common.done')}</span>}
       </div>
 
-      <div className="dt-section-label" style={{ margin: '0 0 8px' }}>Repeated</div>
-      {recurringTasks.length === 0 && <div className="dt-empty-manage" style={{ padding: '8px 0' }}>None yet.</div>}
+      <div className="dt-section-label" style={{ margin: '0 0 8px' }}>{t('manage.repeatedSection')}</div>
+      {recurringTasks.length === 0 && <div className="dt-empty-manage" style={{ padding: '8px 0' }}>{t('common.noneYet')}</div>}
       {recurringTasks.map((r) => (
         <div key={r.id} className="dt-recurring-row">
           <div className="dt-recurring-top">
@@ -1314,7 +1371,7 @@ function GoalDetail({
             </div>
           </div>
           <div className="dt-recurring-meta">
-            <span>{summarizeDays(r.days)}</span>
+            <span>{summarizeDays(r.days, t, weekdayAbbr)}</span>
             {r.time && <span className="dt-time-badge">{r.time}</span>}
             {r.createdDate > todayStr && <span>from {shortDate(r.createdDate)}</span>}
             {r.endDate && <span>until {shortDate(r.endDate)}</span>}
@@ -1322,8 +1379,8 @@ function GoalDetail({
         </div>
       ))}
 
-      <div className="dt-section-label">One-off</div>
-      {dayTaskRows.length === 0 && unlistedPresets.length === 0 && <div className="dt-empty-manage" style={{ padding: '8px 0' }}>None yet.</div>}
+      <div className="dt-section-label">{t('manage.oneOffSection')}</div>
+      {dayTaskRows.length === 0 && unlistedPresets.length === 0 && <div className="dt-empty-manage" style={{ padding: '8px 0' }}>{t('common.noneYet')}</div>}
 
       {!isNoGoal && dayTaskRows.map((row) => {
         const isPreset = !!findMatchingPreset(row);
@@ -1342,15 +1399,15 @@ function GoalDetail({
             </div>
             <label className="dt-preset-toggle">
               <input type="checkbox" checked={isPreset} onChange={() => onTogglePresetForTask(row)} />
-              Preset
+              {t('manage.presetToggle')}
             </label>
             <button className="dt-menu-btn" onClick={() => onToggleRowMenu(menuKey)}><MoreVertical size={16} /></button>
             {openMenuTaskId === menuKey && (
               <>
                 <div className="dt-menu-overlay" onClick={onCloseRowMenu} />
                 <div className="dt-menu">
-                  <button className="dt-menu-item" onClick={() => onEditTaskInstance(row)}>Edit</button>
-                  <button className="dt-menu-item danger" onClick={() => onDeleteTaskInstance(row)}>Delete</button>
+                  <button className="dt-menu-item" onClick={() => onEditTaskInstance(row)}>{t('common.edit')}</button>
+                  <button className="dt-menu-item danger" onClick={() => onDeleteTaskInstance(row)}>{t('common.delete')}</button>
                 </div>
               </>
             )}
@@ -1369,13 +1426,13 @@ function GoalDetail({
       ))}
 
       <button className="dt-preset-btn" style={{ width: '100%', marginTop: 14, padding: '10px' }} onClick={onAddPreset}>
-        <Plus size={14} /> Add task
+        <Plus size={14} /> {t('manage.addTask')}
       </button>
     </div>
   );
 }
 
-function TaskRow({ task, goal, completed, menuOpen, onToggleMenu, onCloseMenu, onToggleComplete, onEdit, onSkipToday, onStopRepeating, onDelete }) {
+function TaskRow({ task, goal, completed, t, locale, menuOpen, onToggleMenu, onCloseMenu, onToggleComplete, onEdit, onSkipToday, onStopRepeating, onDelete }) {
   return (
     <div className="dt-task-row">
       {/* The tick inherits currentColor from .dt-checkbox so it stays legible on
@@ -1397,7 +1454,7 @@ function TaskRow({ task, goal, completed, menuOpen, onToggleMenu, onCloseMenu, o
           )}
           {task.isRecurring && <Repeat size={11} className="dt-repeat-icon" />}
           {task.carryOver && <CornerDownRight size={11} className="dt-repeat-icon" />}
-          {task.carriedFrom && <span className="dt-meta-note">from {MONTH_NAMES[fromDateStr(task.carriedFrom).getMonth()].slice(0, 3)} {fromDateStr(task.carriedFrom).getDate()}</span>}
+          {task.carriedFrom && <span className="dt-meta-note">{t('task.carriedFrom', { date: formatShortDate(fromDateStr(task.carriedFrom), locale) })}</span>}
         </div>
       </div>
       <button className="dt-menu-btn" onClick={onToggleMenu}><MoreVertical size={18} /></button>
@@ -1405,14 +1462,14 @@ function TaskRow({ task, goal, completed, menuOpen, onToggleMenu, onCloseMenu, o
         <>
           <div className="dt-menu-overlay" onClick={onCloseMenu} />
           <div className="dt-menu">
-            <button className="dt-menu-item" onClick={onEdit}>Edit</button>
+            <button className="dt-menu-item" onClick={onEdit}>{t('common.edit')}</button>
             {task.isRecurring ? (
               <>
-                <button className="dt-menu-item" onClick={onSkipToday}>Skip just today</button>
-                <button className="dt-menu-item danger" onClick={onStopRepeating}>Stop repeating</button>
+                <button className="dt-menu-item" onClick={onSkipToday}>{t('task.skipToday')}</button>
+                <button className="dt-menu-item danger" onClick={onStopRepeating}>{t('task.stopRepeating')}</button>
               </>
             ) : (
-              <button className="dt-menu-item danger" onClick={onDelete}>Delete</button>
+              <button className="dt-menu-item danger" onClick={onDelete}>{t('common.delete')}</button>
             )}
           </div>
         </>

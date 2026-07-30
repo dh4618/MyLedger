@@ -9,8 +9,10 @@ import React from 'react';
 // aren't shipping anyone else's character art into the repo.
 //
 // Every mascot takes the same props so they're interchangeable:
-//   size — pixel width/height
-//   mood — 'idle' | 'cheer' (everything done) | 'sleepy' (nothing to do)
+//   size  — pixel width/height
+//   mood  — 'idle' | 'cheer' (everything done) | 'sleepy' (nothing to do)
+//   label — accessible name, already translated by the caller. Falls back to the
+//           i18n key if omitted, which is wrong but visible rather than silent.
 //
 // The colours here are deliberately hardcoded rather than themed: the picker
 // shows all six characters side by side, so each needs to look like itself
@@ -91,9 +93,9 @@ const svgProps = (size, label) => ({
   width: size, height: size, viewBox: '0 0 64 64', role: 'img', 'aria-label': label,
 });
 
-export function MochiMascot({ size = 64, mood = 'idle' }) {
+export function MochiMascot({ size = 64, mood = 'idle', label }) {
   return (
-    <svg {...svgProps(size, 'Mochi the cat')}>
+    <svg {...svgProps(size, label || 'mascot.mochi.aria')}>
       <ellipse cx="32" cy="56" rx="17" ry="3.6" fill="#000000" opacity="0.06" />
       <path d="M17 25 L15 8 L29 17 Z" fill="#F7C9D6" stroke="#E38FAB" strokeWidth="1.5" strokeLinejoin="round" />
       <path d="M47 25 L49 8 L35 17 Z" fill="#F7C9D6" stroke="#E38FAB" strokeWidth="1.5" strokeLinejoin="round" />
@@ -116,9 +118,9 @@ export function MochiMascot({ size = 64, mood = 'idle' }) {
   );
 }
 
-export function SproutMascot({ size = 64, mood = 'idle' }) {
+export function SproutMascot({ size = 64, mood = 'idle', label }) {
   return (
-    <svg {...svgProps(size, 'Sprout the frog')}>
+    <svg {...svgProps(size, label || 'mascot.sprout.aria')}>
       <ellipse cx="32" cy="57" rx="17" ry="3.6" fill="#000000" opacity="0.06" />
       <path d="M32 13 v-5" stroke="#4E8F45" strokeWidth="1.8" strokeLinecap="round" />
       <path d="M32 10 C32 5 34 2 38 1 C39 6 37 10 32 10 Z" fill="#7CC46A" stroke="#4E8F45" strokeWidth="1.2" strokeLinejoin="round" />
@@ -137,9 +139,9 @@ export function SproutMascot({ size = 64, mood = 'idle' }) {
   );
 }
 
-export function EmberMascot({ size = 64, mood = 'idle' }) {
+export function EmberMascot({ size = 64, mood = 'idle', label }) {
   return (
-    <svg {...svgProps(size, 'Ember the fox')}>
+    <svg {...svgProps(size, label || 'mascot.ember.aria')}>
       <ellipse cx="32" cy="56" rx="16" ry="3.6" fill="#000000" opacity="0.06" />
       <path d="M14 27 L11 6 L27 16 Z" fill="#E8843C" stroke="#B85A21" strokeWidth="1.5" strokeLinejoin="round" />
       <path d="M50 27 L53 6 L37 16 Z" fill="#E8843C" stroke="#B85A21" strokeWidth="1.5" strokeLinejoin="round" />
@@ -158,9 +160,9 @@ export function EmberMascot({ size = 64, mood = 'idle' }) {
   );
 }
 
-export function PixelMascot({ size = 64, mood = 'idle' }) {
+export function PixelMascot({ size = 64, mood = 'idle', label }) {
   return (
-    <svg {...svgProps(size, 'Pixel the robot')}>
+    <svg {...svgProps(size, label || 'mascot.pixel.aria')}>
       <ellipse cx="32" cy="56" rx="16" ry="3.6" fill="#000000" opacity="0.06" />
       <path d="M32 13 v-6" stroke="#6D4FD6" strokeWidth="2" strokeLinecap="round" />
       <circle cx="32" cy="5" r="3.4" fill="#F0A6D6" stroke="#6D4FD6" strokeWidth="1.2" />
@@ -176,9 +178,9 @@ export function PixelMascot({ size = 64, mood = 'idle' }) {
   );
 }
 
-export function CloudyMascot({ size = 64, mood = 'idle' }) {
+export function CloudyMascot({ size = 64, mood = 'idle', label }) {
   return (
-    <svg {...svgProps(size, 'Cloudy the bunny')}>
+    <svg {...svgProps(size, label || 'mascot.cloudy.aria')}>
       <ellipse cx="32" cy="57" rx="16" ry="3.6" fill="#000000" opacity="0.06" />
       <ellipse cx="23" cy="14" rx="5.5" ry="12.5" fill="#DCE9F8" stroke="#7FA3CE" strokeWidth="1.5" />
       <ellipse cx="41" cy="14" rx="5.5" ry="12.5" fill="#DCE9F8" stroke="#7FA3CE" strokeWidth="1.5" />
@@ -199,9 +201,9 @@ export function CloudyMascot({ size = 64, mood = 'idle' }) {
   );
 }
 
-export function LunaMascot({ size = 64, mood = 'idle' }) {
+export function LunaMascot({ size = 64, mood = 'idle', label }) {
   return (
-    <svg {...svgProps(size, 'Luna the owl')}>
+    <svg {...svgProps(size, label || 'mascot.luna.aria')}>
       <ellipse cx="32" cy="57" rx="16" ry="3.6" fill="#000000" opacity="0.18" />
       <path d="M56 5 A8 8 0 1 0 56 21 A6 6 0 1 1 56 5 Z" fill="#E4B65C" opacity="0.9" />
       <path d="M18 23 L15 10 L26 17 Z" fill="#5A6A9C" />
@@ -224,15 +226,20 @@ export function LunaMascot({ size = 64, mood = 'idle' }) {
 // The authoritative palettes live in theme.css as `[data-theme="<id>"]` blocks —
 // they have to be plain CSS so index.html can apply the saved theme before React
 // boots and avoid a flash of the wrong colours. What lives here is everything
-// JavaScript needs: the character, the display copy, the three swatches drawn on
-// the picker card, and the colour for the iOS status bar.
+// JavaScript needs: the character, the three swatches drawn on the picker card,
+// and the colours for the iOS status bar.
+//
+// Display copy is *not* here — nameKey/blurbKey/ariaKey point at entries in
+// src/i18n/strings.js so the character names and descriptions translate along
+// with the rest of the interface.
 // ---------------------------------------------------------------------------
 
 export const THEMES = [
   {
     id: 'sprout',
-    name: 'Sprout',
-    blurb: 'a cheerful garden frog',
+    nameKey: 'mascot.sprout.name',
+    blurbKey: 'mascot.sprout.blurb',
+    ariaKey: 'mascot.sprout.aria',
     Mascot: SproutMascot,
     themeColor: '#EDF0EE',
     statusBar: 'default',
@@ -240,8 +247,9 @@ export const THEMES = [
   },
   {
     id: 'mochi',
-    name: 'Mochi',
-    blurb: 'a soft-hearted cat',
+    nameKey: 'mascot.mochi.name',
+    blurbKey: 'mascot.mochi.blurb',
+    ariaKey: 'mascot.mochi.aria',
     Mascot: MochiMascot,
     themeColor: '#FDF2F4',
     statusBar: 'default',
@@ -249,8 +257,9 @@ export const THEMES = [
   },
   {
     id: 'ember',
-    name: 'Ember',
-    blurb: 'a quick little fox',
+    nameKey: 'mascot.ember.name',
+    blurbKey: 'mascot.ember.blurb',
+    ariaKey: 'mascot.ember.aria',
     Mascot: EmberMascot,
     themeColor: '#FBF3EA',
     statusBar: 'default',
@@ -258,8 +267,9 @@ export const THEMES = [
   },
   {
     id: 'pixel',
-    name: 'Pixel',
-    blurb: 'a tidy pocket robot',
+    nameKey: 'mascot.pixel.name',
+    blurbKey: 'mascot.pixel.blurb',
+    ariaKey: 'mascot.pixel.aria',
     Mascot: PixelMascot,
     themeColor: '#F4F1FB',
     statusBar: 'default',
@@ -267,8 +277,9 @@ export const THEMES = [
   },
   {
     id: 'cloudy',
-    name: 'Cloudy',
-    blurb: 'a daydreaming bunny',
+    nameKey: 'mascot.cloudy.name',
+    blurbKey: 'mascot.cloudy.blurb',
+    ariaKey: 'mascot.cloudy.aria',
     Mascot: CloudyMascot,
     themeColor: '#EFF5FC',
     statusBar: 'default',
@@ -276,8 +287,9 @@ export const THEMES = [
   },
   {
     id: 'luna',
-    name: 'Luna',
-    blurb: 'a night owl — dark mode',
+    nameKey: 'mascot.luna.name',
+    blurbKey: 'mascot.luna.blurb',
+    ariaKey: 'mascot.luna.aria',
     Mascot: LunaMascot,
     themeColor: '#171B26',
     statusBar: 'black',

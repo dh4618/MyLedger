@@ -45,6 +45,21 @@
 
         var root = document.documentElement;
         root.setAttribute('data-theme', id);
+
+        // Language, applied here for the same reason as the theme: <html lang>
+        // drives CJK glyph selection, so setting it before first paint avoids a
+        // reflow when the Chinese UI mounts. Keep in sync with LANGUAGES in
+        // src/i18n/strings.js.
+        var LANGS = { en: 1, 'zh-CN': 1 };
+        var lang = null;
+        try {
+          var savedLang = localStorage.getItem('ledger-lang');
+          if (savedLang && LANGS[savedLang]) lang = savedLang;
+        } catch (e) {
+          // Storage disabled; fall through to the browser's preference.
+        }
+        if (!lang) lang = /^zh\b/i.test(navigator.language || '') ? 'zh-CN' : 'en';
+        root.setAttribute('lang', lang);
         // Covers the moment before the stylesheet has applied.
         root.style.background = background;
 

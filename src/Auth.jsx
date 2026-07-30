@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from './supabase';
 import { useTheme } from './ThemeProvider';
+import { useLang } from './i18n/LanguageProvider';
 
 // Remembering the address means a returning device only ever has to tap once.
 const EMAIL_KEY = 'ledger-email';
@@ -19,6 +20,7 @@ const EMAIL_KEY = 'ledger-email';
 // forget the password, and how you sign in the first time before one is set.
 export default function Auth({ children }) {
   const { theme } = useTheme();
+  const { t } = useLang();
   const [session, setSession] = useState(null);
   const [checking, setChecking] = useState(true);
   const [mode, setMode] = useState('password'); // 'password' | 'link'
@@ -58,7 +60,7 @@ export default function Auth({ children }) {
     const address = email.trim();
     if (!address || !password || busy) return;
     setBusy(true);
-    setStatus({ text: 'Signing in…', kind: 'info' });
+    setStatus({ text: t('auth.signingIn'), kind: 'info' });
     const { error } = await supabase.auth.signInWithPassword({ email: address, password });
     setBusy(false);
     if (error) {
@@ -66,9 +68,7 @@ export default function Auth({ children }) {
       // been set yet, so say so rather than just "invalid credentials".
       const unmatched = /invalid login credentials/i.test(error.message);
       setStatus({
-        text: unmatched
-          ? "That didn't match. If you haven't set a password yet, use the email link below, then set one in Manage → Account."
-          : error.message,
+        text: unmatched ? t('auth.badCredentials') : error.message,
         kind: 'error',
       });
       return;
@@ -81,7 +81,7 @@ export default function Auth({ children }) {
     const address = email.trim();
     if (!address || busy) return;
     setBusy(true);
-    setStatus({ text: 'Sending…', kind: 'info' });
+    setStatus({ text: t('auth.sending'), kind: 'info' });
     const { error } = await supabase.auth.signInWithOtp({
       email: address,
       options: { emailRedirectTo: window.location.origin },
@@ -94,14 +94,14 @@ export default function Auth({ children }) {
     remember(address);
     setCode('');
     setLinkSent(true);
-    setStatus({ text: `Sent to ${address}.`, kind: 'good' });
+    setStatus({ text: t('auth.sentTo', { email: address }), kind: 'good' });
   };
 
   const verifyCode = async (token) => {
     if (verifying.current || token.length !== 6) return;
     verifying.current = true;
     setBusy(true);
-    setStatus({ text: 'Checking…', kind: 'info' });
+    setStatus({ text: t('auth.checking'), kind: 'info' });
     const { error } = await supabase.auth.verifyOtp({
       email: email.trim(),
       token,
@@ -111,7 +111,7 @@ export default function Auth({ children }) {
     setBusy(false);
     if (error) {
       setCode('');
-      setStatus({ text: `${error.message} Send a new one if it has expired.`, kind: 'error' });
+      setStatus({ text: t('auth.codeRetry', { message: error.message }), kind: 'error' });
     }
   };
 
@@ -133,8 +133,8 @@ export default function Auth({ children }) {
   if (checking) {
     return (
       <div className="dt-loading">
-        <Mascot size={56} mood="idle" />
-        <div>Just a moment…</div>
+        <Mascot size={56} mood="idle" label={t(theme.ariaKey)} />
+        <div>{t('auth.justAMoment')}</div>
       </div>
     );
   }
@@ -145,13 +145,13 @@ export default function Auth({ children }) {
     <div className="dt-auth-wrap">
       <div className="dt-auth-card">
         <div className="dt-auth-mascot">
-          <Mascot size={64} mood={mode === 'password' ? 'idle' : 'sleepy'} />
+          <Mascot size={64} mood={mode === 'password' ? 'idle' : 'sleepy'} label={t(theme.ariaKey)} />
         </div>
-        <h1 className="dt-auth-title">Ledger</h1>
+        <h1 className="dt-auth-title">{t('app.name')}</h1>
 
         {mode === 'password' && (
           <>
-            <p className="dt-auth-sub">Sign in once and this device stays signed in.</p>
+            <p className="dt-auth-sub">{t('auth.subPassword')}</p>
             {/* autoComplete lets the iOS keychain offer to save and autofill these,
                 which is what makes a return visit a single tap. */}
             <input
@@ -159,7 +159,7 @@ export default function Auth({ children }) {
               type="email"
               inputMode="email"
               autoComplete="username"
-              placeholder="you@example.com"
+              placeholder={t('auth.emailPlaceholder')}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') signIn(); }}
@@ -168,53 +168,46 @@ export default function Auth({ children }) {
               className="dt-auth-input"
               type="password"
               autoComplete="current-password"
-              placeholder="Password"
+              placeholder={t('auth.passwordPlaceholder')}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') signIn(); }}
             />
             <button className="dt-auth-button" onClick={signIn} disabled={busy || !email.trim() || !password}>
-              {busy ? 'Signing in…' : 'Sign in'}
+              {busy ? t('auth.signingIn') : t('auth.signIn')}
             </button>
             <button
               className="dt-auth-link"
               onClick={() => { setMode('link'); setStatus(null); }}
             >
-              No password yet, or forgotten it?
+              {t('auth.forgot')}
             </button>
           </>
         )}
 
         {mode === 'link' && !linkSent && (
           <>
-            <p className="dt-auth-sub">
-              We'll email you a sign-in link. Once you're in, set a password under
-              Manage → Account so you won't need email again.
-            </p>
+            <p className="dt-auth-sub">{t('auth.subLink')}</p>
             <input
               className="dt-auth-input"
               type="email"
               inputMode="email"
               autoComplete="username"
-              placeholder="you@example.com"
+              placeholder={t('auth.emailPlaceholder')}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') sendLink(); }}
             />
             <button className="dt-auth-button" onClick={sendLink} disabled={busy || !email.trim()}>
-              {busy ? 'Sending…' : 'Email me a link'}
+              {busy ? t('auth.sending') : t('auth.sendLink')}
             </button>
-            <button className="dt-auth-link" onClick={showPasswordForm}>Back to password</button>
+            <button className="dt-auth-link" onClick={showPasswordForm}>{t('auth.backToPassword')}</button>
           </>
         )}
 
         {mode === 'link' && linkSent && (
           <>
-            <p className="dt-auth-sub">
-              Tap the link in the email to sign in. If your email also shows a
-              6-digit code, you can type it here instead — handy on a Home Screen
-              shortcut, where the link opens Safari rather than this app.
-            </p>
+            <p className="dt-auth-sub">{t('auth.subCode')}</p>
             <input
               className="dt-auth-input dt-auth-code"
               type="text"
@@ -222,15 +215,15 @@ export default function Auth({ children }) {
               autoComplete="one-time-code"
               pattern="[0-9]*"
               maxLength={6}
-              placeholder="000000"
+              placeholder={t('auth.codePlaceholder')}
               value={code}
               onChange={(e) => onCodeChange(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') verifyCode(code); }}
             />
             <button className="dt-auth-button" onClick={() => verifyCode(code)} disabled={busy || code.length !== 6}>
-              {busy ? 'Checking…' : 'Use code'}
+              {busy ? t('auth.checking') : t('auth.useCode')}
             </button>
-            <button className="dt-auth-link" onClick={sendLink} disabled={busy}>Send another</button>
+            <button className="dt-auth-link" onClick={sendLink} disabled={busy}>{t('auth.sendAnother')}</button>
             <button className="dt-auth-link" onClick={showPasswordForm}>Back to password</button>
           </>
         )}

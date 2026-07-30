@@ -149,6 +149,44 @@ the web view, so a theme change reaches the status bar on the next launch, not i
 
 ---
 
+## Language
+
+**Manage → Language** switches between English and 简体中文. The choice is saved to your
+account, so a new device picks it up after signing in. On a device that has never chosen,
+the initial language comes from the browser's own preference — any `zh*` locale starts in
+Chinese.
+
+There's no i18n library. For two languages and ~160 strings, a plain dictionary in
+`src/i18n/strings.js` is smaller than the machinery, and every avoided dependency is
+bytes the service worker doesn't have to cache offline. `t()` lives in
+`src/i18n/LanguageProvider.jsx` and does `{name}` substitution; a missing key falls back
+to English and then to the key itself, so a gap shows readable English rather than a blank.
+
+**To add a language:**
+
+1. Add a dictionary and a `LANGUAGES` entry in `src/i18n/strings.js`. `locale` is passed
+   straight to `Intl.DateTimeFormat`, which handles all date formatting — there are no
+   month or weekday name lists to translate. Only `days.letters` and `days.abbr` are
+   hand-written, because the week strip needs single characters.
+2. Add the id to the `LANGS` map in the inline script in `index.html`, so the saved
+   language applies to `<html lang>` before React boots.
+3. If the script isn't Latin or CJK, add a suitable family to `--font-ui` and
+   `--font-display` in `src/theme.css`.
+
+Two things worth knowing if you touch this:
+
+- **Keep keys in parity.** Every key must exist in both dictionaries. Nothing enforces
+  this at build time; the check is in the verification script.
+- **`t` is the translate function, so don't shadow it.** Two `.map()` callbacks in
+  `Ledger.jsx` deliberately use `task` and `th` as their parameter names for this reason.
+
+Chinese glyphs come from the system (PingFang SC on iOS, Microsoft YaHei on Windows)
+rather than a downloaded webfont, so the Chinese UI costs no extra bytes and still works
+with no connection. The CJK families sit *after* Inter and Fraunces in each stack, so
+Latin text still uses the webfonts and only CJK codepoints fall through.
+
+---
+
 ## Themes
 
 **Manage → Appearance** picks one of six characters, each with its own palette:

@@ -19,9 +19,16 @@
 
 :root {
   /* Shape and motion are shared across every theme. */
-  --font-display: 'Fraunces', Georgia, serif;
-  --font-ui: 'Inter', system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+  /* Fraunces, Inter and IBM Plex Mono are Latin-only, so the CJK families are
+     appended rather than substituted: a browser walks the stack per glyph, so
+     Latin text still comes from the webfonts and only Chinese characters fall
+     through to the system face. These are system fonts on purpose — PingFang SC
+     is already on every iPhone, so the Chinese UI costs zero extra bytes and
+     still works with no connection, which matters for an installed PWA. */
+  --font-display: 'Fraunces', Georgia, 'Songti SC', 'STSong', 'Noto Serif CJK SC', 'Noto Serif SC', serif;
+  --font-ui: 'Inter', system-ui, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'PingFang SC', monospace;
   --radius-sm: 8px;
   --radius: 12px;
   --radius-lg: 18px;

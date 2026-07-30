@@ -2,18 +2,22 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import './theme.css';
 import { ThemeProvider } from './ThemeProvider';
+import { LanguageProvider } from './i18n/LanguageProvider';
 import Auth from './Auth';
 import Ledger from './Ledger';
 
-// ThemeProvider sits outside Auth so the sign-in and loading screens are themed
-// too — they used to be the one place that always painted the light palette.
+// Both providers sit outside Auth so the sign-in and loading screens are themed
+// and translated too — they used to be the one place that always painted the
+// light palette in English.
 createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <ThemeProvider>
-      <Auth>
-        <Ledger />
-      </Auth>
-    </ThemeProvider>
+    <LanguageProvider>
+      <ThemeProvider>
+        <Auth>
+          <Ledger />
+        </Auth>
+      </ThemeProvider>
+    </LanguageProvider>
   </React.StrictMode>
 );
 

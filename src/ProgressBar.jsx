@@ -1,14 +1,15 @@
 import React from 'react';
+import { useLang } from './i18n/LanguageProvider';
 
 // How the day is described alongside the x/y count. Kept short so it stays on one
 // line next to the count even on a narrow phone.
-const labelFor = (done, total) => {
-  if (done === 0) return 'Not started';
-  if (done === total) return 'All done';
+const labelKey = (done, total) => {
+  if (done === 0) return 'progress.notStarted';
+  if (done === total) return 'progress.allDone';
   const ratio = done / total;
-  if (ratio < 0.5) return 'Getting going';
-  if (ratio === 0.5) return 'Halfway there';
-  return 'Nearly there';
+  if (ratio < 0.5) return 'progress.gettingGoing';
+  if (ratio === 0.5) return 'progress.halfway';
+  return 'progress.nearlyThere';
 };
 
 // A bar for the tasks currently on screen. It follows the active goal filter, so
@@ -16,12 +17,14 @@ const labelFor = (done, total) => {
 // The reacting mascot lives in the header; duplicating it here would put the same
 // character on screen twice.
 export default function ProgressBar({ done, total, scopeLabel }) {
+  const { t } = useLang();
+
   // Nothing to show a ratio for; the empty state carries the mascot instead.
   if (!total) return null;
 
   const complete = done === total;
   const pct = Math.round((done / total) * 100);
-  const label = labelFor(done, total);
+  const label = t(labelKey(done, total));
 
   return (
     <div className={`dt-progress ${complete ? 'complete' : ''}`}>
@@ -38,7 +41,7 @@ export default function ProgressBar({ done, total, scopeLabel }) {
           aria-valuemin={0}
           aria-valuemax={total}
           aria-valuenow={done}
-          aria-label={`${done} of ${total} tasks complete`}
+          aria-label={t('progress.aria', { done, total })}
         >
           <div className="dt-progress-fill" style={{ width: `${pct}%` }} />
         </div>
