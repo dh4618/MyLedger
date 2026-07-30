@@ -599,12 +599,38 @@ export default function Ledger() {
     ? (activeGoalFilter === NO_GOAL_ID ? rawTasks.filter((t) => !t.goalId) : rawTasks.filter((t) => t.goalId === activeGoalFilter))
     : rawTasks;
   const dayCompleted = getDay(selectedDateStr).completed;
-  const sortedTasks = [...tasks].sort((a, b) => {
+  // The day page reads: everything with a time first in time order, then a group per
+  // goal, then anything without a goal. Completed tasks sink to the bottom of their
+  // own section rather than leaving it, so sections keep a stable size and the x/y
+  // counts on the goal pills stay easy to reconcile with what's on screen.
+  //
+  // Sort is stable, so tasks that tie keep the order they were added in — nothing
+  // reshuffles when you rename something.
+  const doneLast = (a, b) => {
     const aDone = !!dayCompleted[a.id];
     const bDone = !!dayCompleted[b.id];
-    if (aDone !== bDone) return aDone ? 1 : -1;
-    return (a.time || '99:99').localeCompare(b.time || '99:99');
-  });
+    if (aDone === bDone) return 0;
+    return aDone ? 1 : -1;
+  };
+  const taskSections = [];
+  {
+    const timed = tasks
+      .filter((x) => x.time)
+      .sort((a, b) => doneLast(a, b) || a.time.localeCompare(b.time));
+    if (timed.length) taskSections.push({ key: '__timed__', label: t('task.timedSection'), tasks: timed });
+
+    const untimed = tasks.filter((x) => !x.time);
+    // Goal order follows the pills row, so the page and the filter agree.
+    goals.forEach((g) => {
+      const items = untimed.filter((x) => x.goalId === g.id).sort(doneLast);
+      if (items.length) taskSections.push({ key: g.id, label: g.name, goal: g, tasks: items });
+    });
+
+    // Deleting a goal leaves its tasks with a goalId that no longer resolves, so
+    // "no goal" has to mean "no goal we can find", not just a missing id.
+    const others = untimed.filter((x) => !goalById(x.goalId)).sort(doneLast);
+    if (others.length) taskSections.push({ key: NO_GOAL_ID, label: t('common.others'), tasks: others });
+  }
   const selDate = fromDateStr(selectedDateStr);
   const dateHeadline = formatHeadline(selDate, locale);
 
@@ -774,23 +800,40 @@ export default function Ledger() {
           )}
 
           {/* `task`, not `t` — `t` is the translate function in this scope. */}
-          {sortedTasks.map((task) => (
-            <TaskRow
-              key={task.id}
-              task={task}
-              t={t}
-              locale={locale}
-              goal={goalById(task.goalId)}
-              completed={!!dayCompleted[task.id]}
-              menuOpen={openMenuTaskId === task.id}
-              onToggleMenu={() => setOpenMenuTaskId(openMenuTaskId === task.id ? null : task.id)}
-              onCloseMenu={() => setOpenMenuTaskId(null)}
-              onToggleComplete={() => toggleComplete(selectedDateStr, task.id)}
-              onEdit={() => openEditTask(task, task.carriedFrom ? { dateStr: task.carriedFrom } : {})}
-              onSkipToday={() => skipToday(selectedDateStr, task.id)}
-              onStopRepeating={() => stopRepeating(task.id)}
-              onDelete={() => deleteOneOff(selectedDateStr, task.id)}
-            />
+          {taskSections.map((section) => (
+            <div key={section.key}>
+              <div className="dt-section-label dt-section-label-row">
+                {section.goal && (hasGoalIcon(section.goal.icon)
+                  ? <GoalIcon icon={section.goal.icon} size={11} color={section.goal.color} />
+                  : <span className="dt-goal-dot" style={{ background: section.goal.color, width: 6, height: 6 }} />)}
+                {section.key === NO_GOAL_ID && (
+                  <span className="dt-goal-dot" style={{ background: NO_GOAL_COLOR, width: 6, height: 6 }} />
+                )}
+                {section.label}
+              </div>
+              {section.tasks.map((task) => (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  t={t}
+                  locale={locale}
+                  goal={goalById(task.goalId)}
+                  // Inside a goal section the heading already names the goal, so
+                  // repeating it on every row is noise. The timed section mixes
+                  // goals, so it keeps the chip.
+                  hideGoal={!!section.goal}
+                  completed={!!dayCompleted[task.id]}
+                  menuOpen={openMenuTaskId === task.id}
+                  onToggleMenu={() => setOpenMenuTaskId(openMenuTaskId === task.id ? null : task.id)}
+                  onCloseMenu={() => setOpenMenuTaskId(null)}
+                  onToggleComplete={() => toggleComplete(selectedDateStr, task.id)}
+                  onEdit={() => openEditTask(task, task.carriedFrom ? { dateStr: task.carriedFrom } : {})}
+                  onSkipToday={() => skipToday(selectedDateStr, task.id)}
+                  onStopRepeating={() => stopRepeating(task.id)}
+                  onDelete={() => deleteOneOff(selectedDateStr, task.id)}
+                />
+              ))}
+            </div>
           ))}
         </div>
 
@@ -1443,7 +1486,7 @@ function GoalDetail({
   );
 }
 
-function TaskRow({ task, goal, completed, t, locale, menuOpen, onToggleMenu, onCloseMenu, onToggleComplete, onEdit, onSkipToday, onStopRepeating, onDelete }) {
+function TaskRow({ task, goal, completed, hideGoal, t, locale, menuOpen, onToggleMenu, onCloseMenu, onToggleComplete, onEdit, onSkipToday, onStopRepeating, onDelete }) {
   return (
     <div className="dt-task-row">
       {/* The tick inherits currentColor from .dt-checkbox so it stays legible on
@@ -1455,7 +1498,7 @@ function TaskRow({ task, goal, completed, t, locale, menuOpen, onToggleMenu, onC
         <div className={`dt-task-name ${completed ? 'done' : ''}`}>{task.name}</div>
         <div className="dt-task-meta">
           {task.time && <span className="dt-time-badge">{task.time}</span>}
-          {goal && (
+          {goal && !hideGoal && (
             <span className="dt-goal-chip">
               {hasGoalIcon(goal.icon)
                 ? <GoalIcon icon={goal.icon} size={11} color={goal.color} />

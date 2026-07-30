@@ -515,6 +515,12 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
    =========================================================================== */
 
 .dt-body { padding: 6px calc(20px + env(safe-area-inset-right)) 0 calc(20px + env(safe-area-inset-left)); }
+/* Section headings on the day page carry the goal's dot or icon, so a group is
+   identifiable at a glance without reading the label. */
+.dt-section-label-row { display: flex; align-items: center; gap: 6px; }
+/* The first heading sits directly under the progress bar and doesn't need the
+   full separating margin the later ones do. */
+.dt-body > div:first-child > .dt-section-label { margin-top: 6px; }
 .dt-section-label {
   font-size: 11px;
   font-weight: 600;
