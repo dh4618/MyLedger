@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
 import ProgressBar from './ProgressBar';
+import PasswordSetting from './PasswordSetting';
 import { GOAL_ICONS, GoalIcon, hasGoalIcon } from './goalIcons';
 
 const GOAL_COLORS = ['#3F5A44', '#3E5C76', '#B8862F', '#9C4430', '#6B5B87', '#3F7A6B'];
@@ -1147,6 +1148,10 @@ export default function Ledger() {
 
                 <div className="dt-manage-section">
                   <div className="dt-field-label" style={{ marginBottom: 10 }}>Account</div>
+                  <PasswordSetting />
+                  <div className="dt-hint" style={{ margin: '8px 0 12px' }}>
+                    Set this once and you can sign in on any device without waiting for an email.
+                  </div>
                   <button className="dt-preset-btn danger" style={{ width: '100%', padding: '10px' }} onClick={signOut}>
                     <LogOut size={14} /> Sign out
                   </button>

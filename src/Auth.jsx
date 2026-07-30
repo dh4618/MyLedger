@@ -8,17 +8,20 @@ const EMAIL_KEY = 'ledger-email';
 // Wraps the app so data is always tied to a signed-in account — that's what makes
 // the same data show up on your phone and your laptop.
 //
-// Sign-in is a 6-digit code typed into the app, not a link tapped in Mail. On iOS
-// a home-screen web app has its own storage container, separate from Safari's, so
-// a link opened by Mail signs *Safari* in and leaves the home-screen app exactly
-// where it was. Typing the code never leaves the app, so the session lands in the
-// right place. The email still contains a link, which is the nicer path on a
-// laptop where there's only one browser involved.
+// Sign-in is email + password. That matters specifically for the iPhone Home
+// Screen app: on iOS an installed web app gets its own storage container,
+// separate from Safari's, so a link tapped in Mail signs *Safari* in and leaves
+// the installed app exactly where it was. A password is typed into the app, so
+// the session lands where it's needed — and unlike an emailed code it needs no
+// mail delivery, no SMTP provider and no template customisation at all.
+//
+// The emailed link is kept as the recovery path: it's how you get in if you
+// forget the password, and how you sign in the first time before one is set.
 export default function Auth({ children }) {
   const { theme } = useTheme();
   const [session, setSession] = useState(null);
   const [checking, setChecking] = useState(true);
-  const [step, setStep] = useState('email'); // 'email' | 'code'
+  const [mode, setMode] = useState('password'); // 'password' | 'link'
   const [email, setEmail] = useState(() => {
     try {
       return window.localStorage.getItem(EMAIL_KEY) || '';
@@ -26,7 +29,9 @@ export default function Auth({ children }) {
       return '';
     }
   });
+  const [password, setPassword] = useState('');
   const [code, setCode] = useState('');
+  const [linkSent, setLinkSent] = useState(false);
   const [status, setStatus] = useState(null); // { text, kind: 'info' | 'error' | 'good' }
   const [busy, setBusy] = useState(false);
   // Guards the auto-submit on the sixth digit against firing twice.
@@ -41,7 +46,38 @@ export default function Auth({ children }) {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const sendCode = async () => {
+  const remember = (address) => {
+    try {
+      window.localStorage.setItem(EMAIL_KEY, address);
+    } catch (e) {
+      // Prefill is a convenience; carry on without it.
+    }
+  };
+
+  const signIn = async () => {
+    const address = email.trim();
+    if (!address || !password || busy) return;
+    setBusy(true);
+    setStatus({ text: 'Signing in…', kind: 'info' });
+    const { error } = await supabase.auth.signInWithPassword({ email: address, password });
+    setBusy(false);
+    if (error) {
+      // The most common cause on a fresh account is simply that no password has
+      // been set yet, so say so rather than just "invalid credentials".
+      const unmatched = /invalid login credentials/i.test(error.message);
+      setStatus({
+        text: unmatched
+          ? "That didn't match. If you haven't set a password yet, use the email link below, then set one in Manage → Account."
+          : error.message,
+        kind: 'error',
+      });
+      return;
+    }
+    remember(address);
+    // onAuthStateChange swaps this screen out for the ledger.
+  };
+
+  const sendLink = async () => {
     const address = email.trim();
     if (!address || busy) return;
     setBusy(true);
@@ -55,14 +91,10 @@ export default function Auth({ children }) {
       setStatus({ text: error.message, kind: 'error' });
       return;
     }
-    try {
-      window.localStorage.setItem(EMAIL_KEY, address);
-    } catch (e) {
-      // Prefill is a convenience; carry on without it.
-    }
+    remember(address);
     setCode('');
-    setStep('code');
-    setStatus({ text: `Code sent to ${address}.`, kind: 'good' });
+    setLinkSent(true);
+    setStatus({ text: `Sent to ${address}.`, kind: 'good' });
   };
 
   const verifyCode = async (token) => {
@@ -79,9 +111,8 @@ export default function Auth({ children }) {
     setBusy(false);
     if (error) {
       setCode('');
-      setStatus({ text: `${error.message} Codes expire after a while — send a new one if needed.`, kind: 'error' });
+      setStatus({ text: `${error.message} Send a new one if it has expired.`, kind: 'error' });
     }
-    // On success onAuthStateChange swaps this screen out for the ledger.
   };
 
   const onCodeChange = (raw) => {
@@ -91,9 +122,9 @@ export default function Auth({ children }) {
     if (digits.length === 6) verifyCode(digits);
   };
 
-  const restart = () => {
-    setStep('email');
-    setCode('');
+  const showPasswordForm = () => {
+    setMode('password');
+    setLinkSent(false);
     setStatus(null);
   };
 
@@ -114,56 +145,101 @@ export default function Auth({ children }) {
     <div className="dt-auth-wrap">
       <div className="dt-auth-card">
         <div className="dt-auth-mascot">
-          <Mascot size={64} mood={step === 'code' ? 'idle' : 'sleepy'} />
+          <Mascot size={64} mood={mode === 'password' ? 'idle' : 'sleepy'} />
         </div>
         <h1 className="dt-auth-title">Ledger</h1>
 
-        {step === 'email' ? (
+        {mode === 'password' && (
           <>
             <p className="dt-auth-sub">Sign in once and this device stays signed in.</p>
+            {/* autoComplete lets the iOS keychain offer to save and autofill these,
+                which is what makes a return visit a single tap. */}
             <input
               className="dt-auth-input"
               type="email"
               inputMode="email"
-              autoComplete="email"
+              autoComplete="username"
               placeholder="you@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') sendCode(); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') signIn(); }}
             />
-            <button className="dt-auth-button" onClick={sendCode} disabled={busy || !email.trim()}>
-              {busy ? 'Sending…' : 'Email me a code'}
+            <input
+              className="dt-auth-input"
+              type="password"
+              autoComplete="current-password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') signIn(); }}
+            />
+            <button className="dt-auth-button" onClick={signIn} disabled={busy || !email.trim() || !password}>
+              {busy ? 'Signing in…' : 'Sign in'}
+            </button>
+            <button
+              className="dt-auth-link"
+              onClick={() => { setMode('link'); setStatus(null); }}
+            >
+              No password yet, or forgotten it?
             </button>
           </>
-        ) : (
+        )}
+
+        {mode === 'link' && !linkSent && (
           <>
             <p className="dt-auth-sub">
-              Enter the 6-digit code from the email. Stay in this app — don't tap the
-              link if you're on your Home Screen shortcut.
+              We'll email you a sign-in link. Once you're in, set a password under
+              Manage → Account so you won't need email again.
+            </p>
+            <input
+              className="dt-auth-input"
+              type="email"
+              inputMode="email"
+              autoComplete="username"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') sendLink(); }}
+            />
+            <button className="dt-auth-button" onClick={sendLink} disabled={busy || !email.trim()}>
+              {busy ? 'Sending…' : 'Email me a link'}
+            </button>
+            <button className="dt-auth-link" onClick={showPasswordForm}>Back to password</button>
+          </>
+        )}
+
+        {mode === 'link' && linkSent && (
+          <>
+            <p className="dt-auth-sub">
+              Tap the link in the email to sign in. If your email also shows a
+              6-digit code, you can type it here instead — handy on a Home Screen
+              shortcut, where the link opens Safari rather than this app.
             </p>
             <input
               className="dt-auth-input dt-auth-code"
               type="text"
               inputMode="numeric"
               autoComplete="one-time-code"
-              // iOS offers the code straight from the notification with this pattern.
               pattern="[0-9]*"
               maxLength={6}
               placeholder="000000"
-              autoFocus
               value={code}
               onChange={(e) => onCodeChange(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') verifyCode(code); }}
             />
             <button className="dt-auth-button" onClick={() => verifyCode(code)} disabled={busy || code.length !== 6}>
-              {busy ? 'Checking…' : 'Sign in'}
+              {busy ? 'Checking…' : 'Use code'}
             </button>
-            <button className="dt-auth-link" onClick={sendCode} disabled={busy}>Send a new code</button>
-            <button className="dt-auth-link" onClick={restart}>Use a different email</button>
+            <button className="dt-auth-link" onClick={sendLink} disabled={busy}>Send another</button>
+            <button className="dt-auth-link" onClick={showPasswordForm}>Back to password</button>
           </>
         )}
 
-        {status && <p className={`dt-auth-status ${status.kind === 'error' ? 'error' : status.kind === 'good' ? 'good' : ''}`}>{status.text}</p>}
+        {status && (
+          <p className={`dt-auth-status ${status.kind === 'error' ? 'error' : status.kind === 'good' ? 'good' : ''}`}>
+            {status.text}
+          </p>
+        )}
       </div>
     </div>
   );

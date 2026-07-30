@@ -572,6 +572,7 @@ body {
   color: var(--muted);
 }
 .dt-preset-btn:hover { color: var(--ink); border-color: var(--muted); }
+.dt-preset-btn:disabled { opacity: 0.55; cursor: default; }
 .dt-preset-btn.danger { color: var(--brick); }
 .dt-day-chips { display: flex; gap: 5px; }
 .dt-day-chip {
