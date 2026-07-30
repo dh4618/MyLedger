@@ -1,6 +1,10 @@
 import { storage } from './storage';
+import { supabase } from './supabase';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays } from 'lucide-react';
+import { useTheme } from './ThemeProvider';
+import ProgressBar from './ProgressBar';
+import { GOAL_ICONS, GoalIcon, hasGoalIcon } from './goalIcons';
 
 const GOAL_COLORS = ['#3F5A44', '#3E5C76', '#B8862F', '#9C4430', '#6B5B87', '#3F7A6B'];
 const NO_GOAL_ID = '__no_goal__';
@@ -45,6 +49,7 @@ const summarizeDays = (days) => {
 };
 
 export default function Ledger() {
+  const { theme, themeId, setThemeId, themes } = useTheme();
   const [loading, setLoading] = useState(true);
   const [goals, setGoals] = useState([]);
   const [recurring, setRecurring] = useState([]);
@@ -59,6 +64,7 @@ export default function Ledger() {
   const [manageGoalId, setManageGoalId] = useState(null);
   const [editingGoalId, setEditingGoalId] = useState(null);
   const [editingGoalName, setEditingGoalName] = useState('');
+  const [iconPickerGoalId, setIconPickerGoalId] = useState(null);
   const [modal, setModal] = useState(null); // { mode: 'add'|'edit', presetMode, lockRepeats, form: {...} }
   const [presets, setPresets] = useState([]);
   const [confirmDialog, setConfirmDialog] = useState(null); // { message, onConfirm }
@@ -282,6 +288,20 @@ export default function Ledger() {
     return completedCount === total;
   }, [days, recurring, todayStr]);
 
+  // The only way out, now that a device stays signed in indefinitely.
+  const signOut = () => {
+    setConfirmDialog({
+      message: "Sign out on this device? You'll need a fresh code from your email to get back in.",
+      confirmLabel: 'Sign out',
+      onConfirm: async () => {
+        // Day writes are debounced, so flush anything pending before the session
+        // goes away and the write would be rejected.
+        if (daysFlushTimer.current) await flushDays();
+        await supabase.auth.signOut();
+      },
+    });
+  };
+
   // ---- Actions ----
   const toggleComplete = (dateStr, taskId) => {
     const day = getDay(dateStr);
@@ -500,6 +520,11 @@ export default function Ledger() {
   const cycleGoalColor = (id) => {
     saveGoals(goals.map((g) => (g.id === id ? { ...g, color: GOAL_COLORS[(GOAL_COLORS.indexOf(g.color) + 1) % GOAL_COLORS.length] } : g)));
   };
+  // Tapping the same icon again clears it, so a goal can always go back to being
+  // just a coloured dot.
+  const setGoalIcon = (id, icon) => {
+    saveGoals(goals.map((g) => (g.id === id ? { ...g, icon: g.icon === icon ? null : icon } : g)));
+  };
   const startEditGoalName = (g) => { setEditingGoalId(g.id); setEditingGoalName(g.name); };
   const commitEditGoalName = () => {
     if (editingGoalName.trim()) {
@@ -526,6 +551,28 @@ export default function Ledger() {
   const selDate = fromDateStr(selectedDateStr);
   const dateHeadline = `${WEEKDAY_NAMES[selDate.getDay()]}, ${selDate.getDate()} ${MONTH_NAMES[selDate.getMonth()]}`;
 
+  // Progress for the bar. Counted from `tasks` rather than `rawTasks` so the bar
+  // follows the active goal filter — filter to one goal and you see that goal's
+  // ratio, which is what you're looking at on screen.
+  const doneCount = tasks.filter((t) => dayCompleted[t.id]).length;
+  const activeGoalName = activeGoalFilter
+    ? (activeGoalFilter === NO_GOAL_ID ? 'Others' : (goalById(activeGoalFilter) || {}).name)
+    : null;
+
+  // The mascot in the header reflects the day: asleep with nothing to do, pleased
+  // once everything is ticked off.
+  const dayMood = tasks.length === 0 ? 'sleepy' : doneCount === tasks.length ? 'cheer' : 'idle';
+
+  // Per-goal counts for the pills, always from the unfiltered day so every pill
+  // keeps showing its own total while one of them is selected.
+  const goalProgress = {};
+  rawTasks.forEach((t) => {
+    const key = t.goalId || NO_GOAL_ID;
+    if (!goalProgress[key]) goalProgress[key] = { done: 0, total: 0 };
+    goalProgress[key].total += 1;
+    if (dayCompleted[t.id]) goalProgress[key].done += 1;
+  });
+
   const manageFilterGoalId = manageGoalId === NO_GOAL_ID ? null : manageGoalId;
   const goalDayTaskRows = [];
   if (manageGoalId && manageGoalId !== NO_GOAL_ID) {
@@ -539,147 +586,19 @@ export default function Ledger() {
     goalDayTaskRows.sort((a, b) => b.dateStr.localeCompare(a.dateStr));
   }
 
+  const Mascot = theme.Mascot;
+
   if (loading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#EDF0EE', fontFamily: 'Inter, sans-serif', color: '#6E7568' }}>
-        Loading your ledger…
+      <div className="dt-loading">
+        <Mascot size={56} mood="idle" />
+        <div>Loading your ledger…</div>
       </div>
     );
   }
 
   return (
     <div className="dt-app">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap');
-        :root {
-          --paper: #EDF0EE;
-          --raised: #FFFFFF;
-          --ink: #1B211C;
-          --muted: #6E7568;
-          --line: #D7DCD4;
-          --moss: #3F5A44;
-          --slate: #3E5C76;
-          --gold: #B8862F;
-          --brick: #9C4430;
-        }
-        * { box-sizing: border-box; }
-        .dt-app { min-height: 100vh; background: var(--paper); font-family: 'Inter', sans-serif; color: var(--ink); display: flex; justify-content: center; }
-        .dt-container { width: 100%; max-width: 480px; min-height: 100vh; background: var(--paper); position: relative; padding-bottom: 100px; }
-        .dt-storage-warning { background: #9C4430; color: #fff; padding: 12px 16px; font-size: 13px; line-height: 1.4; }
-        .dt-header { padding: 22px 20px 8px; }
-        .dt-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-        .dt-wordmark { font-family: 'Fraunces', serif; font-weight: 900; font-size: 22px; letter-spacing: -0.02em; }
-        .dt-tagline { font-family: 'Fraunces', serif; font-style: italic; font-size: 12px; color: var(--muted); margin-top: -2px; }
-        .dt-settings-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px; display: flex; }
-        .dt-settings-btn:hover { color: var(--ink); }
-        .dt-goals-row { display: flex; gap: 8px; overflow-x: auto; padding: 4px 0 14px; scrollbar-width: none; }
-        .dt-goals-row::-webkit-scrollbar { display: none; }
-        .dt-goal-pill { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 20px; border: 1px solid var(--line); background: var(--raised); font-size: 13px; font-weight: 500; white-space: nowrap; cursor: pointer; flex-shrink: 0; transition: all 0.15s; }
-        .dt-goal-pill.active { border-color: var(--ink); background: var(--ink); color: var(--paper); }
-        .dt-goal-pill.done:not(.active) { color: var(--muted); border-style: dashed; }
-        .dt-done-badge { display: inline-flex; align-items: center; gap: 2px; font-size: 10px; font-weight: 700; color: var(--moss); background: rgba(63,90,68,0.1); padding: 2px 6px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.03em; }
-        .dt-goal-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-        .dt-goal-add { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; border: 1px dashed var(--muted); color: var(--muted); background: none; cursor: pointer; flex-shrink: 0; }
-        .dt-date-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
-        .dt-date-headline { font-family: 'Fraunces', serif; font-weight: 600; font-size: 26px; cursor: pointer; }
-        .dt-today-btn { font-size: 12px; font-weight: 600; color: var(--gold); background: none; border: 1px solid var(--gold); border-radius: 20px; padding: 3px 10px; cursor: pointer; }
-        .dt-week-strip { display: flex; align-items: center; gap: 4px; }
-        .dt-week-arrow { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; flex-shrink: 0; }
-        .dt-week-arrow:hover { color: var(--ink); }
-        .dt-day-tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0 6px; border-radius: 10px; cursor: pointer; border: none; background: none; position: relative; }
-        .dt-day-tab .letter { font-size: 10px; color: var(--muted); font-weight: 600; letter-spacing: 0.05em; }
-        .dt-day-tab .num { font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 500; }
-        .dt-day-tab.selected { background: var(--ink); }
-        .dt-day-tab.selected .letter, .dt-day-tab.selected .num { color: var(--paper); }
-        .dt-day-tab.today:not(.selected) .num { color: var(--gold); font-weight: 700; }
-        .dt-tab-indicator { width: 5px; height: 5px; border-radius: 50%; background: transparent; }
-        .dt-tab-indicator.has-tasks { background: var(--slate); }
-        .dt-tab-indicator.complete { background: var(--gold); }
-        .dt-day-tab.selected .dt-tab-indicator.has-tasks { background: var(--paper); opacity: 0.6; }
-        .dt-day-tab.selected .dt-tab-indicator.complete { background: var(--gold); opacity: 1; }
-        .dt-body { padding: 6px 20px 0; }
-        .dt-section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; margin: 18px 0 8px; }
-        .dt-task-row { display: flex; align-items: center; gap: 12px; padding: 12px 4px; border-bottom: 1px solid var(--line); position: relative; }
-        .dt-checkbox { width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--muted); flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; background: var(--raised); }
-        .dt-checkbox.checked { background: var(--moss); border-color: var(--moss); }
-        .dt-task-main { flex: 1; min-width: 0; cursor: pointer; }
-        .dt-task-name { font-size: 15px; font-weight: 500; line-height: 1.3; }
-        .dt-task-name.done { text-decoration: line-through; color: var(--muted); }
-        .dt-task-meta { display: flex; align-items: center; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
-        .dt-time-badge { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--slate); background: rgba(62,92,118,0.08); padding: 2px 6px; border-radius: 4px; }
-        .dt-goal-chip { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); }
-        .dt-goal-chip-dot { width: 6px; height: 6px; border-radius: 50%; }
-        .dt-repeat-icon { color: var(--muted); flex-shrink: 0; }
-        .dt-menu-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px; flex-shrink: 0; }
-        .dt-menu { position: absolute; right: 4px; top: 44px; background: var(--raised); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 8px 24px rgba(27,33,28,0.12); z-index: 20; overflow: hidden; min-width: 150px; }
-        .dt-menu-item { display: block; width: 100%; text-align: left; padding: 10px 14px; font-size: 13px; background: none; border: none; cursor: pointer; color: var(--ink); }
-        .dt-menu-item:hover { background: var(--paper); }
-        .dt-menu-item.danger { color: var(--brick); }
-        .dt-menu-overlay { position: fixed; inset: 0; z-index: 15; }
-        .dt-empty-state { text-align: center; padding: 60px 20px; color: var(--muted); }
-        .dt-empty-state .headline { font-family: 'Fraunces', serif; font-size: 17px; color: var(--ink); margin-bottom: 4px; }
-        .dt-fab { position: fixed; bottom: 28px; right: calc(50% - 240px + 20px); width: 54px; height: 54px; border-radius: 50%; background: var(--gold); color: var(--raised); border: none; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 18px rgba(184,134,47,0.4); cursor: pointer; z-index: 30; }
-        @media (max-width: 480px) { .dt-fab { right: 20px; } }
-        .dt-modal-overlay { position: fixed; inset: 0; background: rgba(27,33,28,0.4); display: flex; align-items: flex-end; justify-content: center; z-index: 60; }
-        .dt-modal-sheet { width: 100%; max-width: 480px; background: var(--raised); border-radius: 20px 20px 0 0; padding: 22px 20px 28px; max-height: 85vh; overflow-y: auto; }
-        .dt-modal-title { font-family: 'Fraunces', serif; font-weight: 600; font-size: 19px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: center; }
-        .dt-field-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; display: block; }
-        .dt-subfield-label { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
-        .dt-field { margin-bottom: 18px; }
-        .dt-input { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; font-size: 15px; font-family: 'Inter'; background: var(--paper); color: var(--ink); }
-        .dt-input:focus { outline: none; border-color: var(--moss); }
-        .dt-segmented { display: flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
-        .dt-segmented-btn { flex: 1; padding: 10px; text-align: center; font-size: 13px; font-weight: 500; background: var(--paper); border: none; cursor: pointer; color: var(--muted); }
-        .dt-segmented-btn.active { background: var(--moss); color: var(--raised); }
-        .dt-goal-picker { display: flex; flex-wrap: wrap; gap: 8px; }
-        .dt-goal-option { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 20px; border: 1px solid var(--line); background: var(--paper); font-size: 13px; cursor: pointer; }
-        .dt-goal-option.active { border-color: var(--ink); background: var(--ink); color: var(--paper); }
-        .dt-modal-actions { display: flex; gap: 10px; margin-top: 6px; }
-        .dt-btn-primary { flex: 1; padding: 13px; background: var(--moss); color: var(--raised); border: none; border-radius: 10px; font-size: 15px; font-weight: 600; cursor: pointer; }
-        .dt-btn-secondary { padding: 13px 18px; background: none; border: 1px solid var(--line); border-radius: 10px; font-size: 15px; color: var(--muted); cursor: pointer; }
-        .dt-hint { font-size: 12px; color: var(--muted); margin-top: -12px; margin-bottom: 16px; }
-        .dt-checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-bottom: 18px; cursor: pointer; }
-        .dt-checkbox-row input { width: 15px; height: 15px; accent-color: var(--moss); }
-        .dt-preset-row { display: flex; gap: 6px; margin-bottom: 10px; }
-        .dt-preset-btn { flex: 1; padding: 7px 4px; text-align: center; font-size: 12px; font-weight: 500; background: var(--paper); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; color: var(--muted); }
-        .dt-day-chips { display: flex; gap: 5px; }
-        .dt-day-chip { flex: 1; aspect-ratio: 1; border-radius: 8px; border: 1px solid var(--line); background: var(--paper); font-size: 12px; font-weight: 600; color: var(--muted); cursor: pointer; display: flex; align-items: center; justify-content: center; }
-        .dt-day-chip.active { background: var(--moss); border-color: var(--moss); color: var(--raised); }
-        .dt-manage-panel { position: fixed; inset: 0; background: rgba(27,33,28,0.4); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
-        .dt-manage-sheet { width: 100%; max-width: 480px; background: var(--raised); border-radius: 20px 20px 0 0; padding: 22px 20px 28px; max-height: 85vh; overflow-y: auto; }
-        .dt-goal-edit-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
-        .dt-color-dot-btn { width: 18px; height: 18px; border-radius: 50%; border: none; cursor: pointer; flex-shrink: 0; }
-        .dt-goal-name-text { flex: 1; font-size: 14px; cursor: pointer; padding: 4px 0; }
-        .dt-goal-name-input { flex: 1; border: none; border-bottom: 1px solid var(--moss); background: none; font-size: 14px; font-family: 'Inter'; padding: 4px 0; outline: none; }
-        .dt-icon-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 4px; flex-shrink: 0; }
-        .dt-icon-btn:hover { color: var(--brick); }
-        .dt-add-goal-row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
-        .dt-recurring-row { padding: 12px 0; border-bottom: 1px solid var(--line); }
-        .dt-recurring-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-        .dt-recurring-name { font-size: 14px; font-weight: 500; }
-        .dt-recurring-actions { display: flex; gap: 2px; flex-shrink: 0; }
-        .dt-recurring-meta { display: flex; align-items: center; gap: 8px; margin-top: 5px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
-        .dt-task-instance-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
-        .dt-task-instance-main { flex: 1; min-width: 0; }
-        .dt-preset-toggle { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); white-space: nowrap; cursor: pointer; flex-shrink: 0; }
-        .dt-preset-toggle input { width: 14px; height: 14px; accent-color: var(--moss); }
-        .dt-empty-manage { font-size: 13px; color: var(--muted); padding: 20px 0; text-align: center; }
-        .dt-calendar-overlay { position: fixed; inset: 0; background: rgba(27,33,28,0.4); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
-        .dt-calendar-sheet { width: 100%; max-width: 480px; background: var(--raised); border-radius: 20px 20px 0 0; padding: 20px 20px 28px; }
-        .dt-cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-        .dt-cal-month { font-family: 'Fraunces', serif; font-weight: 600; font-size: 17px; }
-        .dt-cal-nav { display: flex; align-items: center; gap: 4px; }
-        .dt-cal-arrow { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px; }
-        .dt-cal-today-link { font-size: 12px; font-weight: 600; color: var(--gold); background: none; border: 1px solid var(--gold); border-radius: 20px; padding: 3px 10px; cursor: pointer; margin-left: 6px; }
-        .dt-cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); margin-bottom: 4px; }
-        .dt-cal-weekday { text-align: center; font-size: 11px; color: var(--muted); font-weight: 600; padding: 4px 0; }
-        .dt-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-        .dt-cal-cell { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 14px; font-family: 'IBM Plex Mono', monospace; cursor: pointer; border: none; background: none; color: var(--ink); }
-        .dt-cal-cell.outside { color: var(--line); }
-        .dt-cal-cell.today { box-shadow: inset 0 0 0 1.5px var(--gold); font-weight: 700; }
-        .dt-cal-cell.selected { background: var(--ink); color: var(--paper); font-weight: 700; }
-      `}</style>
-
       <div className="dt-container">
         {storageError && (
           <div className="dt-storage-warning">
@@ -690,11 +609,16 @@ export default function Ledger() {
         )}
         <div className="dt-header">
           <div className="dt-topbar">
-            <div>
-              <div className="dt-wordmark">Ledger</div>
-              <div className="dt-tagline">a page for every day</div>
+            <div className="dt-brand">
+              <div className={`dt-header-mascot ${dayMood === 'cheer' ? 'cheer' : ''}`}>
+                <Mascot size={38} mood={dayMood} />
+              </div>
+              <div>
+                <div className="dt-wordmark">Ledger</div>
+                <div className="dt-tagline">a page for every day</div>
+              </div>
             </div>
-            <button className="dt-settings-btn" onClick={() => { setManageGoalId(null); setShowAddGoalInManage(false); setShowManage(true); }}>
+            <button className="dt-settings-btn" title="Manage" onClick={() => { setManageGoalId(null); setShowAddGoalInManage(false); setIconPickerGoalId(null); setShowManage(true); }}>
               <Settings size={20} />
             </button>
           </div>
@@ -702,14 +626,25 @@ export default function Ledger() {
           <div className="dt-goals-row">
             {goals.map((g) => {
               const done = goalIsDone(g.id);
+              const active = activeGoalFilter === g.id;
+              const count = goalProgress[g.id];
               return (
                 <div
                   key={g.id}
-                  className={`dt-goal-pill ${activeGoalFilter === g.id ? 'active' : ''} ${done ? 'done' : ''}`}
-                  onClick={() => setActiveGoalFilter(activeGoalFilter === g.id ? null : g.id)}
+                  className={`dt-goal-pill ${active ? 'active' : ''} ${done ? 'done' : ''}`}
+                  onClick={() => setActiveGoalFilter(active ? null : g.id)}
                 >
-                  {done ? <Check size={12} strokeWidth={3} color={activeGoalFilter === g.id ? '#fff' : 'var(--moss)'} /> : <span className="dt-goal-dot" style={{ background: activeGoalFilter === g.id ? '#fff' : g.color }} />}
+                  {done ? (
+                    <Check size={12} strokeWidth={3} color={active ? 'var(--paper)' : 'var(--moss)'} />
+                  ) : hasGoalIcon(g.icon) ? (
+                    <span className="dt-goal-icon">
+                      <GoalIcon icon={g.icon} size={13} color={active ? 'var(--paper)' : g.color} />
+                    </span>
+                  ) : (
+                    <span className="dt-goal-dot" style={{ background: active ? 'var(--paper)' : g.color }} />
+                  )}
                   {g.name}
+                  {count && <span className="dt-goal-count">{count.done}/{count.total}</span>}
                 </div>
               );
             })}
@@ -717,15 +652,20 @@ export default function Ledger() {
               className={`dt-goal-pill ${activeGoalFilter === NO_GOAL_ID ? 'active' : ''}`}
               onClick={() => setActiveGoalFilter(activeGoalFilter === NO_GOAL_ID ? null : NO_GOAL_ID)}
             >
-              <span className="dt-goal-dot" style={{ background: activeGoalFilter === NO_GOAL_ID ? '#fff' : NO_GOAL_COLOR }} />
+              <span className="dt-goal-dot" style={{ background: activeGoalFilter === NO_GOAL_ID ? 'var(--paper)' : NO_GOAL_COLOR }} />
               Others
+              {goalProgress[NO_GOAL_ID] && (
+                <span className="dt-goal-count">{goalProgress[NO_GOAL_ID].done}/{goalProgress[NO_GOAL_ID].total}</span>
+              )}
             </div>
           </div>
 
           <div className="dt-date-row">
             <div className="dt-date-headline" onClick={() => setShowCalendar(true)}>{dateHeadline}</div>
             {selectedDateStr !== todayStr && (
-              <button className="dt-today-btn" onClick={() => setSelectedDateStr(todayStr)}>Today</button>
+              <button className="dt-today-btn" onClick={() => setSelectedDateStr(todayStr)}>
+                <CalendarDays size={12} /> Today
+              </button>
             )}
           </div>
 
@@ -737,7 +677,11 @@ export default function Ledger() {
               const dTasks = getTasksForDate(ds);
               const day = getDay(ds);
               const hasTasks = dTasks.length > 0;
-              const allComplete = hasTasks && dTasks.every((t) => day.completed[t.id]);
+              const dDone = dTasks.filter((t) => day.completed[t.id]).length;
+              const allComplete = hasTasks && dDone === dTasks.length;
+              // --p drives the dot's conic-gradient, turning it into a tiny
+              // progress ring: slate when untouched, gold once finished.
+              const pct = hasTasks ? Math.round((dDone / dTasks.length) * 100) : 0;
               return (
                 <button
                   key={ds}
@@ -746,7 +690,10 @@ export default function Ledger() {
                 >
                   <span className="letter">{WEEKDAY_LETTERS[i]}</span>
                   <span className="num">{fromDateStr(ds).getDate()}</span>
-                  <span className={`dt-tab-indicator ${allComplete ? 'complete' : hasTasks ? 'has-tasks' : ''}`} />
+                  <span
+                    className={`dt-tab-indicator ${allComplete ? 'complete' : hasTasks ? 'has-tasks' : ''}`}
+                    style={{ '--p': pct }}
+                  />
                 </button>
               );
             })}
@@ -756,9 +703,14 @@ export default function Ledger() {
           </div>
         </div>
 
+        <ProgressBar done={doneCount} total={tasks.length} scopeLabel={activeGoalName} />
+
         <div className="dt-body">
           {tasks.length === 0 && (
             <div className="dt-empty-state">
+              <div className="dt-empty-mascot">
+                <Mascot size={76} mood="sleepy" />
+              </div>
               <div className="headline">Nothing on the page yet</div>
               <div>Add what needs doing on {dateHeadline}.</div>
             </div>
@@ -987,16 +939,23 @@ export default function Ledger() {
                   className={`dt-goal-option ${modal.form.goalId === null ? 'active' : ''}`}
                   onClick={() => setModal({ ...modal, form: { ...modal.form, goalId: null } })}
                 >Others</div>
-                {goals.map((g) => (
-                  <div
-                    key={g.id}
-                    className={`dt-goal-option ${modal.form.goalId === g.id ? 'active' : ''}`}
-                    onClick={() => setModal({ ...modal, form: { ...modal.form, goalId: g.id } })}
-                  >
-                    <span className="dt-goal-chip-dot" style={{ background: modal.form.goalId === g.id ? '#fff' : g.color, display: 'inline-block', marginRight: 5 }} />
-                    {g.name}
-                  </div>
-                ))}
+                {goals.map((g) => {
+                  const picked = modal.form.goalId === g.id;
+                  return (
+                    <div
+                      key={g.id}
+                      className={`dt-goal-option ${picked ? 'active' : ''}`}
+                      onClick={() => setModal({ ...modal, form: { ...modal.form, goalId: g.id } })}
+                    >
+                      {hasGoalIcon(g.icon) ? (
+                        <GoalIcon icon={g.icon} size={12} color={picked ? 'var(--paper)' : g.color} />
+                      ) : (
+                        <span className="dt-goal-chip-dot" style={{ background: picked ? 'var(--paper)' : g.color, display: 'inline-block' }} />
+                      )}
+                      {g.name}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -1061,28 +1020,58 @@ export default function Ledger() {
                 {goals.map((g) => {
                   const done = goalIsDone(g.id);
                   return (
-                    <div key={g.id} className="dt-goal-edit-row">
-                      <button className="dt-color-dot-btn" style={{ background: g.color }} onClick={() => cycleGoalColor(g.id)} title="Tap to change color" />
-                      {editingGoalId === g.id ? (
-                        <input
-                          autoFocus
-                          className="dt-goal-name-input"
-                          value={editingGoalName}
-                          onChange={(e) => setEditingGoalName(e.target.value)}
-                          onBlur={commitEditGoalName}
-                          onKeyDown={(e) => { if (e.key === 'Enter') commitEditGoalName(); if (e.key === 'Escape') setEditingGoalId(null); }}
-                        />
-                      ) : (
-                        <div className="dt-goal-name-text" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }} onClick={() => setManageGoalId(g.id)}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            {g.name}
-                            {done && <span className="dt-done-badge"><Check size={10} strokeWidth={3} /> Done</span>}
-                          </span>
-                          <ChevronRight size={16} color="var(--muted)" />
+                    <div key={g.id}>
+                      <div className="dt-goal-edit-row">
+                        <button
+                          className="dt-goal-badge-btn"
+                          style={{ background: g.color }}
+                          onClick={() => cycleGoalColor(g.id)}
+                          title="Tap to change colour"
+                        >
+                          <GoalIcon icon={g.icon} size={13} color="currentColor" />
+                        </button>
+                        {editingGoalId === g.id ? (
+                          <input
+                            autoFocus
+                            className="dt-goal-name-input"
+                            value={editingGoalName}
+                            onChange={(e) => setEditingGoalName(e.target.value)}
+                            onBlur={commitEditGoalName}
+                            onKeyDown={(e) => { if (e.key === 'Enter') commitEditGoalName(); if (e.key === 'Escape') setEditingGoalId(null); }}
+                          />
+                        ) : (
+                          <div className="dt-goal-name-text" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }} onClick={() => setManageGoalId(g.id)}>
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {g.name}
+                              {done && <span className="dt-done-badge"><Check size={10} strokeWidth={3} /> Done</span>}
+                            </span>
+                            <ChevronRight size={16} color="var(--muted)" />
+                          </div>
+                        )}
+                        <button
+                          className="dt-icon-btn"
+                          title="Pick an icon"
+                          onClick={() => setIconPickerGoalId(iconPickerGoalId === g.id ? null : g.id)}
+                        >
+                          <Smile size={16} />
+                        </button>
+                        <button className="dt-icon-btn" title="Rename" onClick={() => startEditGoalName(g)}><Pencil size={15} /></button>
+                        <button className="dt-icon-btn danger" title="Delete" onClick={() => deleteGoal(g.id)}><Trash2 size={16} /></button>
+                      </div>
+                      {iconPickerGoalId === g.id && (
+                        <div className="dt-icon-grid" style={{ padding: '10px 0 12px' }}>
+                          {GOAL_ICONS.map(({ id, label, Icon }) => (
+                            <button
+                              key={id}
+                              className={`dt-icon-option ${g.icon === id ? 'active' : ''}`}
+                              title={label}
+                              onClick={() => setGoalIcon(g.id, id)}
+                            >
+                              <Icon size={16} strokeWidth={2.2} />
+                            </button>
+                          ))}
                         </div>
                       )}
-                      <button className="dt-icon-btn" onClick={() => startEditGoalName(g)}><Pencil size={15} /></button>
-                      <button className="dt-icon-btn" onClick={() => deleteGoal(g.id)}><Trash2 size={16} /></button>
                     </div>
                   );
                 })}
@@ -1108,14 +1097,61 @@ export default function Ledger() {
                     <button className="dt-goal-add" onClick={addGoal}><Check size={14} /></button>
                   </div>
                 ) : (
-                  <button className="dt-preset-btn" style={{ width: '100%', marginTop: 12, padding: '10px' }} onClick={() => setShowAddGoalInManage(true)}>+ Add goal</button>
+                  <button className="dt-preset-btn" style={{ width: '100%', marginTop: 12, padding: '10px' }} onClick={() => setShowAddGoalInManage(true)}>
+                    <Plus size={14} /> Add goal
+                  </button>
                 )}
 
-                <div style={{ marginTop: 22, paddingTop: 16, borderTop: '1px solid var(--line)' }}>
+                <div className="dt-manage-section">
+                  <div className="dt-field-label" style={{ marginBottom: 10 }}>Appearance</div>
+                  <div className="dt-theme-grid">
+                    {themes.map((t) => {
+                      const ThemeMascot = t.Mascot;
+                      const active = t.id === themeId;
+                      return (
+                        <button
+                          key={t.id}
+                          className={`dt-theme-card ${active ? 'active' : ''}`}
+                          onClick={() => setThemeId(t.id)}
+                        >
+                          <ThemeMascot size={40} mood={active ? 'cheer' : 'idle'} />
+                          <div className="dt-theme-card-body">
+                            <div className="dt-theme-name">
+                              {t.name}
+                              {active && <Check size={12} strokeWidth={3} color="var(--moss)" />}
+                            </div>
+                            <div className="dt-theme-blurb">{t.blurb}</div>
+                            <div className="dt-theme-swatches">
+                              {t.swatches.map((c) => (
+                                <span key={c} className="dt-theme-swatch" style={{ background: c }} />
+                              ))}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="dt-manage-section">
                   <div className="dt-field-label" style={{ marginBottom: 10 }}>Backup</div>
                   <div style={{ display: 'flex', gap: 8 }}>
-                    <button className="dt-preset-btn" style={{ flex: 1, padding: '10px' }} onClick={openExportModal}>Export</button>
-                    <button className="dt-preset-btn" style={{ flex: 1, padding: '10px' }} onClick={() => { setImportText(''); setImportStatus(''); setShowImportModal(true); }}>Restore</button>
+                    <button className="dt-preset-btn" style={{ flex: 1, padding: '10px' }} onClick={openExportModal}>
+                      <Download size={14} /> Export
+                    </button>
+                    <button className="dt-preset-btn" style={{ flex: 1, padding: '10px' }} onClick={() => { setImportText(''); setImportStatus(''); setShowImportModal(true); }}>
+                      <Upload size={14} /> Restore
+                    </button>
+                  </div>
+                </div>
+
+                <div className="dt-manage-section">
+                  <div className="dt-field-label" style={{ marginBottom: 10 }}>Account</div>
+                  <button className="dt-preset-btn danger" style={{ width: '100%', padding: '10px' }} onClick={signOut}>
+                    <LogOut size={14} /> Sign out
+                  </button>
+                  <div className="dt-hint" style={{ margin: '8px 0 0' }}>
+                    This device stays signed in until you sign out here.
                   </div>
                 </div>
               </>
@@ -1230,18 +1266,20 @@ function GoalDetail({
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+      <div className="dt-goal-detail-head">
         <button className="dt-icon-btn" onClick={onBack}><ChevronLeft size={20} /></button>
         {isNoGoal ? (
-          <span style={{ width: 22, height: 22, borderRadius: '50%', background: goal.color, display: 'inline-block', flexShrink: 0 }} />
+          <span className="dt-goal-badge-btn" style={{ background: goal.color }} />
         ) : (
-          <button className="dt-color-dot-btn" style={{ width: 22, height: 22, background: goal.color }} onClick={onCycleColor} title="Tap to change color" />
+          <button className="dt-goal-badge-btn" style={{ background: goal.color }} onClick={onCycleColor} title="Tap to change colour">
+            <GoalIcon icon={goal.icon} size={14} color="currentColor" />
+          </button>
         )}
         {!isNoGoal && editingGoalId === goal.id ? (
           <input
             autoFocus
             className="dt-goal-name-input"
-            style={{ fontSize: 17, fontFamily: "'Fraunces', serif", fontWeight: 600 }}
+            style={{ fontSize: 17, fontFamily: 'var(--font-display)', fontWeight: 600 }}
             value={editingGoalName}
             onChange={(e) => setEditingGoalName(e.target.value)}
             onBlur={onCommitRename}
@@ -1249,7 +1287,8 @@ function GoalDetail({
           />
         ) : (
           <div
-            style={{ fontFamily: "'Fraunces', serif", fontWeight: 600, fontSize: 17, cursor: isNoGoal ? 'default' : 'pointer' }}
+            className="dt-goal-detail-name"
+            style={{ cursor: isNoGoal ? 'default' : 'pointer' }}
             onClick={isNoGoal ? undefined : onStartRename}
           >{goal.name}</div>
         )}
@@ -1285,7 +1324,7 @@ function GoalDetail({
         return (
           <div key={menuKey} className="dt-task-instance-row" style={{ position: 'relative' }}>
             <div className={`dt-checkbox ${row.completed ? 'checked' : ''}`} style={{ width: 20, height: 20 }} onClick={() => onToggleTaskComplete(row)}>
-              {row.completed && <Check size={12} color="#fff" strokeWidth={3} />}
+              {row.completed && <Check size={12} color="currentColor" strokeWidth={3} />}
             </div>
             <div className="dt-task-instance-main">
               <div className={`dt-task-name ${row.completed ? 'done' : ''}`} style={{ fontSize: 14 }}>{row.name}</div>
@@ -1322,7 +1361,9 @@ function GoalDetail({
         </div>
       ))}
 
-      <button className="dt-preset-btn" style={{ width: '100%', marginTop: 14, padding: '10px' }} onClick={onAddPreset}>+ Add task</button>
+      <button className="dt-preset-btn" style={{ width: '100%', marginTop: 14, padding: '10px' }} onClick={onAddPreset}>
+        <Plus size={14} /> Add task
+      </button>
     </div>
   );
 }
@@ -1330,8 +1371,10 @@ function GoalDetail({
 function TaskRow({ task, goal, completed, menuOpen, onToggleMenu, onCloseMenu, onToggleComplete, onEdit, onSkipToday, onStopRepeating, onDelete }) {
   return (
     <div className="dt-task-row">
+      {/* The tick inherits currentColor from .dt-checkbox so it stays legible on
+          whatever the theme uses for a filled control. */}
       <div className={`dt-checkbox ${completed ? 'checked' : ''}`} onClick={onToggleComplete}>
-        {completed && <Check size={13} color="#fff" strokeWidth={3} />}
+        {completed && <Check size={13} color="currentColor" strokeWidth={3} />}
       </div>
       <div className="dt-task-main" onClick={onToggleComplete}>
         <div className={`dt-task-name ${completed ? 'done' : ''}`}>{task.name}</div>
@@ -1339,13 +1382,15 @@ function TaskRow({ task, goal, completed, menuOpen, onToggleMenu, onCloseMenu, o
           {task.time && <span className="dt-time-badge">{task.time}</span>}
           {goal && (
             <span className="dt-goal-chip">
-              <span className="dt-goal-chip-dot" style={{ background: goal.color }} />
+              {hasGoalIcon(goal.icon)
+                ? <GoalIcon icon={goal.icon} size={11} color={goal.color} />
+                : <span className="dt-goal-chip-dot" style={{ background: goal.color }} />}
               {goal.name}
             </span>
           )}
           {task.isRecurring && <Repeat size={11} className="dt-repeat-icon" />}
           {task.carryOver && <CornerDownRight size={11} className="dt-repeat-icon" />}
-          {task.carriedFrom && <span style={{ fontSize: 11, color: 'var(--muted)' }}>from {MONTH_NAMES[fromDateStr(task.carriedFrom).getMonth()].slice(0, 3)} {fromDateStr(task.carriedFrom).getDate()}</span>}
+          {task.carriedFrom && <span className="dt-meta-note">from {MONTH_NAMES[fromDateStr(task.carriedFrom).getMonth()].slice(0, 3)} {fromDateStr(task.carriedFrom).getDate()}</span>}
         </div>
       </div>
       <button className="dt-menu-btn" onClick={onToggleMenu}><MoreVertical size={18} /></button>

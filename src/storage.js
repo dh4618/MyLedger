@@ -4,10 +4,35 @@ import { supabase } from './supabase';
 // Same get/set/delete/list shape, backed by a Postgres table instead.
 // Because the interface matches, the Ledger component needed almost no changes.
 
+// Resolved once per signed-in session rather than per operation.
+let cachedUserId = null;
+
+// Keeps the cache honest across sign-in, sign-out and token refresh.
+supabase.auth.onAuthStateChange((_event, session) => {
+  cachedUserId = session && session.user ? session.user.id : null;
+});
+
 async function currentUserId() {
-  const { data } = await supabase.auth.getUser();
-  if (!data || !data.user) throw new Error('Not signed in');
-  return data.user.id;
+  if (cachedUserId) return cachedUserId;
+
+  // getSession() reads the session that's already persisted locally — no request.
+  // This used to call getUser(), which is a network round-trip to /auth/v1/user,
+  // on every single get/set/delete/list. That made a cold load four extra
+  // requests deep and meant any network hiccup surfaced as "Not signed in" and
+  // tripped the write lock in Ledger.
+  const { data } = await supabase.auth.getSession();
+  if (data && data.session && data.session.user) {
+    cachedUserId = data.session.user.id;
+    return cachedUserId;
+  }
+
+  // No usable local session. Ask the server once, in case one is mid-refresh.
+  const { data: userData } = await supabase.auth.getUser();
+  if (userData && userData.user) {
+    cachedUserId = userData.user.id;
+    return cachedUserId;
+  }
+  throw new Error('Not signed in');
 }
 
 export const storage = {
