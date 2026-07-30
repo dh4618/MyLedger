@@ -42,38 +42,53 @@ security is switched on, which is what step 2.2 does. Skipping that step would l
 database open to anyone. Never put a **secret** key (`sb_secret_…` or `service_role`) in
 frontend code; those bypass RLS entirely.
 
-### 4. Turn on 6-digit sign-in codes
+### 4. Run
+```bash
+npm run dev
+```
 
-**Required — do this before signing in.** Sign-in asks for a 6-digit code, not a link,
-and Supabase's stock email template only renders the link. Until you add the code to the
-template there will be nothing to type in.
+### 5. Set a password (first run only)
 
-Go to **Supabase → Authentication → Email Templates → Magic Link** and use a body like:
+Sign-in is **email + password**. Nothing else is required — no SMTP provider, no email
+template changes, no rate limits to work around.
+
+A brand-new account has no password yet, so the very first sign-in bootstraps one:
+
+1. On the login screen, tap **No password yet, or forgotten it?** and send yourself a link.
+2. Tap the link (in any browser — this first step is fine in Safari).
+3. Once you're in: **Manage → Account → Set a password**.
+
+After that, every device signs in with the password and stays signed in. The session
+refreshes itself in the background, so you shouldn't be asked again unless you use
+**Manage → Sign out**.
+
+**Why a password rather than a magic link.** On iOS a Home Screen web app gets its *own*
+storage container, separate from Safari's. Tapping a link in Mail opens Safari, so Safari
+gets signed in and the Home Screen app stays signed out — which is why a link-only flow
+feels broken on a phone. A password is typed into the app itself, so the session lands
+where you need it. The email/password fields carry the right `autocomplete` attributes, so
+the iOS keychain offers to save them and a return visit is one tap.
+
+The emailed link stays available as the recovery path if you forget the password.
+
+<details>
+<summary>Optional: 6-digit codes in the email as well</summary>
+
+The link-fallback screen also accepts a 6-digit code, but Supabase's stock email template
+only renders the link, so there's nothing to type unless you customise it — and editing
+templates now requires custom SMTP. If you have SMTP configured anyway, add `{{ .Token }}`
+to **Authentication → Email Templates → Magic Link**:
 
 ```html
 <h2>Sign in to Ledger</h2>
 <p>Your code:</p>
 <p style="font-size:28px;letter-spacing:6px;font-family:monospace"><strong>{{ .Token }}</strong></p>
-<p>Enter it in the app. It expires shortly.</p>
-<p style="color:#888;font-size:13px">On a laptop you can just
-<a href="{{ .ConfirmationURL }}">tap this link</a> instead.</p>
+<p>Or <a href="{{ .ConfirmationURL }}">tap this link</a> on a computer.</p>
 ```
 
-`{{ .Token }}` is the code and `{{ .ConfirmationURL }}` is the usual link — keeping both
-means the code works on your phone and the link still works on a computer.
+This is entirely optional — password sign-in doesn't need it.
 
-**Why the code matters.** On iOS a Home Screen web app gets its *own* storage container,
-separate from Safari's. Tapping a link in Mail opens Safari, so Safari gets signed in and
-the Home Screen app stays signed out — which is why a link-only flow feels broken on a
-phone. Typing the code never leaves the app, so the session lands where you need it.
-
-### 5. Run
-```bash
-npm run dev
-```
-Enter your email, then the code from the email. That device is then signed in for good —
-the session refreshes itself in the background, so you shouldn't be asked again unless you
-use **Manage → Sign out**.
+</details>
 
 ---
 
@@ -89,8 +104,8 @@ Then either:
 - **Netlify** — same flow; build command `npm run build`, publish directory `dist`.
 
 Add your deployed URL to **Supabase → Authentication → URL Configuration → Redirect URLs**,
-otherwise the emailed link will bounce back to localhost. (The 6-digit code doesn't depend on
-this, but the link fallback does.)
+otherwise the emailed link will bounce back to localhost. (Password sign-in doesn't depend on
+this, but the link recovery path does.)
 
 ---
 
@@ -100,8 +115,9 @@ Open the deployed URL in **Safari** → Share → **Add to Home Screen**.
 It picks up the diary icon from `public/apple-touch-icon.png` and opens full-screen
 (no address bar) thanks to the manifest and meta tags in `index.html`.
 
-Sign in **inside the Home Screen app** using the 6-digit code — don't tap the email link,
-which would open Safari and sign in the wrong browser. Once that's done the app keeps you
+Sign in **inside the Home Screen app** with your email and password — don't use the email
+link here, which would open Safari and sign in the wrong browser. Set the password first on
+a computer (**Manage → Account**) if you haven't yet. Once that's done the app keeps you
 signed in, and `public/sw.js` lets it open with no connection at all.
 
 ---
