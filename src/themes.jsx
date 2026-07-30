@@ -235,6 +235,7 @@ export const THEMES = [
     blurb: 'a cheerful garden frog',
     Mascot: SproutMascot,
     themeColor: '#EDF0EE',
+    statusBar: 'default',
     swatches: ['#EDF0EE', '#3F5A44', '#B8862F'],
   },
   {
@@ -243,6 +244,7 @@ export const THEMES = [
     blurb: 'a soft-hearted cat',
     Mascot: MochiMascot,
     themeColor: '#FDF2F4',
+    statusBar: 'default',
     swatches: ['#FDF2F4', '#E0729A', '#E8943F'],
   },
   {
@@ -251,6 +253,7 @@ export const THEMES = [
     blurb: 'a quick little fox',
     Mascot: EmberMascot,
     themeColor: '#FBF3EA',
+    statusBar: 'default',
     swatches: ['#FBF3EA', '#D2691E', '#C9A227'],
   },
   {
@@ -259,6 +262,7 @@ export const THEMES = [
     blurb: 'a tidy pocket robot',
     Mascot: PixelMascot,
     themeColor: '#F4F1FB',
+    statusBar: 'default',
     swatches: ['#F4F1FB', '#6D4FD6', '#E08A2E'],
   },
   {
@@ -267,6 +271,7 @@ export const THEMES = [
     blurb: 'a daydreaming bunny',
     Mascot: CloudyMascot,
     themeColor: '#EFF5FC',
+    statusBar: 'default',
     swatches: ['#EFF5FC', '#3B76C4', '#DE9A2C'],
   },
   {
@@ -275,6 +280,7 @@ export const THEMES = [
     blurb: 'a night owl — dark mode',
     Mascot: LunaMascot,
     themeColor: '#171B26',
+    statusBar: 'black',
     swatches: ['#171B26', '#6EA8C9', '#E4B65C'],
   },
 ];

@@ -120,6 +120,33 @@ link here, which would open Safari and sign in the wrong browser. Set the passwo
 a computer (**Manage → Account**) if you haven't yet. Once that's done the app keeps you
 signed in, and `public/sw.js` lets it open with no connection at all.
 
+### If it opens zoomed in
+
+**Delete the Home Screen shortcut and add it again.** iOS stores the pinch-zoom scale per
+installed web app and keeps it across launches, so a stale zoom survives any amount of
+redeploying. Re-adding the shortcut is what clears it.
+
+What caused the zoom in the first place: iOS silently zooms the page whenever a field with
+a font-size under 16px takes focus, and never zooms back out. One tap on a text box was
+enough to leave the app permanently scaled. Every focusable field is now 16px or larger,
+with an iOS-only `@supports` block at the end of `src/theme.css` setting that as the
+default for anything unstyled. **If you add a field, keep it at 16px minimum** — this is
+the single easiest way to reintroduce the bug.
+
+Related iOS handling, all in `src/theme.css`:
+
+- `100dvh` / `85dvh` rather than `vh`, which iOS reports incorrectly.
+- `env(safe-area-inset-*)` on the header, the `+` button, and every bottom sheet, so
+  nothing hides behind the Dynamic Island or the home indicator. These resolve to `0`
+  everywhere else, so they're invisible on desktop.
+- `text-size-adjust: 100%` stops iOS inflating text on its own.
+- `touch-action: manipulation` on buttons and rows removes double-tap-to-zoom.
+
+The status bar is coloured per theme via `theme-color`, with
+`apple-mobile-web-app-status-bar-style` set to `default` on the light themes (dark text)
+and `black` on Luna (light text). Note that iOS reads that second one when it *creates*
+the web view, so a theme change reaches the status bar on the next launch, not immediately.
+
 ---
 
 ## Themes

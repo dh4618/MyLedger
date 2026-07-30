@@ -21,33 +21,40 @@
       // colours instead of flashing the default palette on every launch. Runs after
       // the meta tags above so it can update them in place.
       //
-      // Keep these ids and colours in sync with THEMES in src/themes.jsx.
+      // Keep this map in sync with THEMES in src/themes.jsx — [background, statusBar].
+      // statusBar is 'default' for dark text, 'black' for light text, picked so the
+      // clock stays legible against each palette.
       (function () {
-        var COLORS = {
-          sprout: '#EDF0EE',
-          mochi: '#FDF2F4',
-          ember: '#FBF3EA',
-          pixel: '#F4F1FB',
-          cloudy: '#EFF5FC',
-          luna: '#171B26'
+        var THEMES = {
+          sprout: ['#EDF0EE', 'default'],
+          mochi:  ['#FDF2F4', 'default'],
+          ember:  ['#FBF3EA', 'default'],
+          pixel:  ['#F4F1FB', 'default'],
+          cloudy: ['#EFF5FC', 'default'],
+          luna:   ['#171B26', 'black']
         };
         var id = 'sprout';
         try {
           var saved = localStorage.getItem('ledger-theme');
-          if (saved && COLORS[saved]) id = saved;
+          if (saved && THEMES[saved]) id = saved;
         } catch (e) {
           // Storage disabled (private browsing); the default is fine.
         }
+        var background = THEMES[id][0];
+        var statusBar = THEMES[id][1];
+
         var root = document.documentElement;
         root.setAttribute('data-theme', id);
         // Covers the moment before the stylesheet has applied.
-        root.style.background = COLORS[id];
+        root.style.background = background;
 
         var themeMeta = document.querySelector('meta[name="theme-color"]');
-        if (themeMeta) themeMeta.setAttribute('content', COLORS[id]);
-        // iOS reads this at launch, so it's best-effort for the dark theme.
+        if (themeMeta) themeMeta.setAttribute('content', background);
+        // iOS reads this when it builds the web view, which may already have
+        // happened by now — so this is best-effort and reliably correct from the
+        // launch after a theme change.
         var barMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-        if (barMeta && id === 'luna') barMeta.setAttribute('content', 'black');
+        if (barMeta) barMeta.setAttribute('content', statusBar);
       })();
     </script>
   </head>
