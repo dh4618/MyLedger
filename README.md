@@ -241,3 +241,9 @@ The storage keys and data shapes are identical, so it transfers as-is.
   that's what stops a flaky connection from looking like being signed out.
 - Progress is derived, never stored: the bar and the `x/y` counts come from the same
   `completed` map the checkboxes already write to.
+- The day page groups tasks: everything with a time first in time order, then a section
+  per goal in the same order as the filter pills, then anything without one under
+  **Others**. Completed tasks sink to the bottom of their *own* section rather than
+  leaving it, so sections keep a stable size. A task whose goal has since been deleted
+  keeps a `goalId` that no longer resolves — grouping tests `goalById()` rather than the
+  bare id so those land in Others instead of disappearing.
