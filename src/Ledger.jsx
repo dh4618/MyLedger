@@ -1,4 +1,5 @@
-import { storage } from './storage';
+import { storage, knownUserId } from './storage';
+import { rememberUnflushed, readUnflushed, clearUnflushed } from './pendingWrites';
 import { supabase } from './supabase';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays, Sparkles, ChevronDown, Trophy, RotateCcw } from 'lucide-react';
@@ -209,6 +210,17 @@ export default function Ledger() {
       if (pr.res && pr.res.value) { try { p = JSON.parse(pr.res.value); } catch (e) {} }
       if (dr.res && dr.res.value) { try { allDays = JSON.parse(dr.res.value); } catch (e) {} }
 
+      // A mirror left behind by the previous session means its last day write never
+      // reached the server — the app was closed or offline before it went out. Prefer
+      // it over what the server returned, and re-send it below.
+      const unflushed = !rateLimited && readUnflushed(knownUserId());
+      let replaying = false;
+      if (unflushed && unflushed !== (dr.res && dr.res.value)) {
+        try { allDays = JSON.parse(unflushed); replaying = true; } catch (e) { clearUnflushed(); }
+      } else if (unflushed) {
+        clearUnflushed(); // already on the server; nothing to replay
+      }
+
       // Show the loaded data immediately — don't make the user wait on migration.
       setGoals(g);
       setRecurring(r);
@@ -226,6 +238,10 @@ export default function Ledger() {
         return;
       }
 
+      if (replaying) {
+        latestDays.current = allDays;
+        await flushDays();
+      }
     })();
   }, []);
 
@@ -236,14 +252,16 @@ export default function Ledger() {
       detail: e && e.message ? e.message : t('error.writeRejected'),
     }));
   };
+  // Resolves true only when the server confirmed the write, which is what lets the
+  // caller know whether it is safe to drop its local copy.
   const persist = async (key, value, label) => {
     if (writesLocked.current) {
       // A load failed; refuse to write so we can't overwrite unloaded data with a blank slate.
-      return;
+      return false;
     }
     if (typeof window === 'undefined' || !storage || typeof storage.set !== 'function') {
       reportStorageError(label, new Error(t('error.unavailableOnPage')));
-      return;
+      return false;
     }
     const attempts = 4;
     for (let i = 0; i < attempts; i++) {
@@ -251,19 +269,20 @@ export default function Ledger() {
         const result = await storage.set(key, value, false);
         if (result === null || result === undefined) {
           reportStorageError(label, new Error(t('error.noConfirmation')));
-        } else {
-          setStorageError(null);
+          return false;
         }
-        return;
+        setStorageError(null);
+        return true;
       } catch (e) {
         const isRate = /rate limit/i.test((e && e.message) || '');
         if (i === attempts - 1) {
           reportStorageError(label, e);
-          return;
+          return false;
         }
         await new Promise((resolve) => setTimeout(resolve, (isRate ? 1500 : 500) * (i + 1)));
       }
     }
+    return false;
   };
 
   const saveGoals = async (next) => {
@@ -284,12 +303,18 @@ export default function Ledger() {
       daysFlushTimer.current = null;
     }
     const snapshot = latestDays.current;
-    await persist('all-days', JSON.stringify(snapshot), 'error.label.days');
+    const ok = await persist('all-days', JSON.stringify(snapshot), 'error.label.days');
+    // The local copy is only safe to drop once the server has actually taken the write.
+    if (ok) clearUnflushed();
+    return ok;
   }, []);
   const saveDay = (dateStr, next) => {
     const updated = { ...latestDays.current, [dateStr]: next };
     latestDays.current = updated;
     setDays(updated);
+    // Written synchronously, ahead of the debounce, so a tick survives the app being
+    // closed inside the 600ms window — or the network write failing outright.
+    rememberUnflushed(knownUserId(), JSON.stringify(updated));
     if (daysFlushTimer.current) clearTimeout(daysFlushTimer.current);
     daysFlushTimer.current = setTimeout(() => { flushDays(); }, 600);
   };
@@ -297,16 +322,27 @@ export default function Ledger() {
   // Keep the latest-days ref in sync with state (covers the load path setting days directly).
   useEffect(() => { latestDays.current = days; }, [days]);
 
-  // Best-effort flush of any pending day changes before the page unloads.
+  // Flush pending day changes the moment the app goes away.
+  //
+  // This used to listen on `beforeunload` alone, which an installed iOS web app
+  // essentially never fires — switching apps, locking the phone and swiping the app
+  // away all skip it. `visibilitychange` is the one that does fire, and it fires while
+  // the page is still alive, so an ordinary write has time to complete rather than
+  // being abandoned mid-flight the way an unload-time write is.
   useEffect(() => {
-    const handler = () => {
-      if (daysFlushTimer.current && !writesLocked.current) {
-        try { storage.set('all-days', JSON.stringify(latestDays.current), false); } catch (e) { /* nothing we can do at unload */ }
-      }
+    const flushNow = () => {
+      if (daysFlushTimer.current && !writesLocked.current) flushDays();
     };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, []);
+    const onVisibility = () => { if (document.visibilityState === 'hidden') flushNow(); };
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('pagehide', flushNow);
+    window.addEventListener('beforeunload', flushNow); // desktop tab close
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pagehide', flushNow);
+      window.removeEventListener('beforeunload', flushNow);
+    };
+  }, [flushDays]);
 
   const getDay = (dateStr) => days[dateStr] || defaultDay();
 
