@@ -700,6 +700,10 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 .dt-preset-btn:disabled { opacity: 0.55; cursor: default; }
 .dt-preset-btn.danger { color: var(--brick); }
 .dt-day-chips { display: flex; gap: 5px; }
+/* Seven across, matching the weekday row above it, so the dates sit in columns you
+   can scan. 31 doesn't divide by 7, so the last row is short — which is also true of
+   a calendar, and reads fine. */
+.dt-month-chips { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
 .dt-day-chip {
   flex: 1;
   aspect-ratio: 1;

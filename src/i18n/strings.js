@@ -82,7 +82,12 @@ export const en = {
   'task.repeated': 'Repeated',
   'task.lockedRepeating': 'Repeating task — delete and re-add to change to one-off.',
   'task.lockedOneOff': 'One-off — delete and re-add to change to repeating.',
+  'task.repeatEvery': 'How often',
+  'task.freqWeekly': 'Weekly',
+  'task.freqMonthly': 'Monthly',
   'task.whichDays': 'On which days',
+  'task.whichDates': 'On which dates',
+  'task.monthEndHint': 'A month with no such date uses its last day instead, so 31 means month end.',
   'task.editAffectsAll': 'Editing this updates it everywhere it appears, including past days.',
   'task.activeDates': 'Active dates',
   'task.starts': 'Starts',
@@ -105,6 +110,14 @@ export const en = {
   'days.everyDay': 'Every day',
   'days.weekdays': 'Weekdays',
   'days.weekends': 'Weekends',
+  // {days} arrives already joined with common.listSep, each item through days.dayOfMonth.
+  'days.monthlyOn': 'Monthly · {days}',
+  // English gets its ordinal suffix from Intl.PluralRules before it reaches here, so
+  // this pattern only has to place the number. Chinese marks each date with 号.
+  'days.dayOfMonth': '{day}',
+  // 31 always lands on the last day of the month — short months clamp to it — so it is
+  // worth naming rather than showing a date that half the year doesn't have.
+  'days.monthEnd': 'month end',
   // Monday-first, matching WEEKDAY_ORDER in Ledger.jsx. Single characters so the
   // week strip and the day chips stay square.
   'days.letters': 'M,T,W,T,F,S,S',
@@ -274,7 +287,12 @@ export const zhCN = {
   'task.repeated': '重复',
   'task.lockedRepeating': '这是重复任务 —— 如需改为单次，请删除后重新添加。',
   'task.lockedOneOff': '这是单次任务 —— 如需改为重复，请删除后重新添加。',
+  'task.repeatEvery': '重复频率',
+  'task.freqWeekly': '每周',
+  'task.freqMonthly': '每月',
   'task.whichDays': '在哪些日子',
+  'task.whichDates': '在每月哪几号',
+  'task.monthEndHint': '当月没有这一号时，改在当月最后一天 —— 所以选 31 即为月末。',
   'task.editAffectsAll': '修改会影响它出现的所有日期，包括过去的日期。',
   'task.activeDates': '生效日期',
   'task.starts': '开始',
@@ -297,6 +315,10 @@ export const zhCN = {
   'days.everyDay': '每天',
   'days.weekdays': '工作日',
   'days.weekends': '周末',
+  // No space after 每月: Chinese doesn't separate the quantifier from what follows.
+  'days.monthlyOn': '每月{days}',
+  'days.dayOfMonth': '{day}号',
+  'days.monthEnd': '最后一天',
   'days.letters': '一,二,三,四,五,六,日',
   'days.abbr': '周一,周二,周三,周四,周五,周六,周日',
 
