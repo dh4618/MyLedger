@@ -263,10 +263,19 @@ The storage keys and data shapes are identical, so it transfers as-is.
   is currently filtered. Without that, every long-term project would sit in the row forever.
   A past day still shows the pills for goals that had tasks that day, which is what you
   want when looking back.
+- **Repeating tasks come in two frequencies.** `freq: 'weekly'` matches on `days`
+  (0–6, Sunday-based); `freq: 'monthly'` matches on `monthDays` (1–31). **An absent
+  `freq` means weekly**, so templates stored before monthly existed need no migration.
+  A month too short for the chosen date fires on its *last* day instead — so the 31st
+  still happens in February, and picking 31 is how you say "month end". That clamp is
+  why the summary line names 31 rather than printing it.
 - **A keep-until-complete task is stored on one day but lives on another.** It stays in
   `days[created].oneOff` forever, while the day it appears on — and the `completed` map
-  its tick is written to — is its *home* day: the day it was ticked off, or today while
-  it's still outstanding (`carryHomeDay`). Anything reading task state by walking `days`
+  its tick is written to — is its *home* day: the day it was ticked off, or, while it's
+  still outstanding, the later of today and the day it was planned for (`carryHomeDay`).
+  That "later of" is what makes planning ahead work: without it a task you put on next
+  Tuesday is dragged onto today immediately, since "carry forward" has nothing to carry
+  until its day arrives. Anything reading task state by walking `days`
   has to follow that indirection or the task reads as untouched. Manage's task list and
   the goal-steps-complete rule both do. Edit and delete are the other way round — they
   mutate the stored object, so they use the storage day, which is why manage rows carry

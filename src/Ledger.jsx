@@ -36,6 +36,14 @@ const startOfWeek = (d) => {
   return date;
 };
 const defaultDay = () => ({ oneOff: [], completed: {}, removedRecurring: [] });
+const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
+
+// An absent `freq` means weekly, so templates stored before monthly existed need no
+// migration — they keep matching on `days` exactly as they did.
+const isMonthly = (r) => !!r && r.freq === 'monthly';
+const monthDaysOf = (r) => (r && r.monthDays && r.monthDays.length ? r.monthDays : [1]);
+// Day 0 of the next month is the last day of this one.
+const daysInMonth = (dateStr) => new Date(Number(dateStr.slice(0, 4)), Number(dateStr.slice(5, 7)), 0).getDate();
 
 // Dates come from Intl rather than hand-written month and weekday arrays, so a new
 // language needs no date work at all. Formatters are cached per locale because
@@ -99,6 +107,31 @@ const summarizeDays = (days, t, weekdayAbbr) => {
     .filter((x) => set.has(x))
     .map((x) => weekdayAbbr[WEEKDAY_ORDER.indexOf(x)])
     .join(t('common.listSep'));
+};
+
+// "1st" reads better than "1" in English and needs the plural rules to get right;
+// languages that don't inflect ordinals get the bare number, and their `days.monthlyOn`
+// pattern supplies whatever marker they need (Chinese puts 日 after the list).
+const ordinalCache = new Map();
+const ordinal = (n, locale) => {
+  if (!String(locale).startsWith('en')) return String(n);
+  let pr = ordinalCache.get(locale);
+  if (!pr) { pr = new Intl.PluralRules(locale, { type: 'ordinal' }); ordinalCache.set(locale, pr); }
+  return `${n}${{ one: 'st', two: 'nd', few: 'rd' }[pr.select(n)] || 'th'}`;
+};
+
+// 31 is always the last day of the month, since shorter months clamp onto it, so it
+// reads better named than as a date most months don't have.
+const monthDayLabel = (n, t, locale) => (
+  n === 31 ? t('days.monthEnd') : t('days.dayOfMonth', { day: ordinal(n, locale) })
+);
+
+const summarizeRepeat = (r, t, weekdayAbbr, locale) => {
+  if (!isMonthly(r)) return summarizeDays(r.days, t, weekdayAbbr);
+  const list = [...monthDaysOf(r)].sort((a, b) => a - b)
+    .map((n) => monthDayLabel(n, t, locale))
+    .join(t('common.listSep'));
+  return t('days.monthlyOn', { days: list });
 };
 
 export default function Ledger() {
@@ -291,25 +324,43 @@ export default function Ledger() {
   }, [days]);
 
   // A keep-until-complete task lives on exactly one day: the day it was completed, or — while
-  // it's still unfinished — today. That's why it leaves the day it was carried from.
-  const carryHomeDay = useCallback((taskId) => completedDayById[taskId] || todayStr, [completedDayById, todayStr]);
+  // it's still unfinished — the later of today and the day it was planned for. That's why it
+  // leaves the day it was carried from. Taking the later of the two is what lets you plan
+  // ahead: without it, a task you put on next Tuesday would be dragged onto today at once,
+  // since "carry forward" has nothing to carry until its day arrives.
+  const carryHomeDay = useCallback((taskId, plannedDateStr) => {
+    const doneOn = completedDayById[taskId];
+    if (doneOn) return doneOn;
+    return plannedDateStr && plannedDateStr > todayStr ? plannedDateStr : todayStr;
+  }, [completedDayById, todayStr]);
 
   const getTasksForDate = useCallback((dateStr) => {
     const day = days[dateStr] || defaultDay();
     const dow = fromDateStr(dateStr).getDay();
+    const dom = fromDateStr(dateStr).getDate();
+    const lastDom = daysInMonth(dateStr);
     const recurringInstances = recurring
       .filter((r) => {
         if (r.createdDate > dateStr) return false;
         if (r.endDate && dateStr > r.endDate) return false;
         if (day.removedRecurring.includes(r.id)) return false;
+        if (isMonthly(r)) return monthDaysOf(r).some((n) => (
+          // A month with no such date falls back to its last day, so "the 31st" still
+          // happens in February instead of being silently skipped that month.
+          n === dom || (n > lastDom && dom === lastDom)
+        ));
         const activeDays = r.days && r.days.length ? r.days : ALL_DAYS;
         return activeDays.includes(dow);
       })
-      .map((r) => ({ id: r.id, name: r.name, time: r.time, goalId: r.goalId, days: r.days || ALL_DAYS, createdDate: r.createdDate, endDate: r.endDate, isRecurring: true }));
+      .map((r) => ({
+        id: r.id, name: r.name, time: r.time, goalId: r.goalId,
+        days: r.days || ALL_DAYS, freq: isMonthly(r) ? 'monthly' : 'weekly', monthDays: monthDaysOf(r),
+        createdDate: r.createdDate, endDate: r.endDate, isRecurring: true,
+      }));
 
     // Stored tasks for this day, minus any keep-until-complete ones that have moved on.
     const oneOff = day.oneOff
-      .filter((t) => !t.carryOver || carryHomeDay(t.id) === dateStr)
+      .filter((t) => !t.carryOver || carryHomeDay(t.id, dateStr) === dateStr)
       .map((t) => ({ ...t, isRecurring: false }));
 
     // Keep-until-complete tasks stored on other days whose home day is this one.
@@ -318,7 +369,7 @@ export default function Ledger() {
       if (ds === dateStr) return;
       (days[ds].oneOff || []).forEach((t) => {
         if (!t.carryOver) return;
-        if (carryHomeDay(t.id) !== dateStr) return;
+        if (carryHomeDay(t.id, ds) !== dateStr) return;
         carried.push({ ...t, isRecurring: false, carriedFrom: ds });
       });
     });
@@ -452,7 +503,18 @@ export default function Ledger() {
   };
 
   const openAddTask = ({ goalId = null, repeats = false, presetMode = false, lockRepeats = false, dateStr = null } = {}) => {
-    setModal({ mode: 'add', presetMode, lockRepeats, dateStr: dateStr || selectedDateStr, form: { id: null, name: '', repeats, hasTime: false, time: '09:00', goalId, days: [...ALL_DAYS], startDate: todayStr, endDate: '', saveAsPreset: false, carryOver: false } });
+    const target = dateStr || selectedDateStr;
+    setModal({
+      mode: 'add', presetMode, lockRepeats, dateStr: target,
+      form: {
+        id: null, name: '', repeats, hasTime: false, time: '09:00', goalId,
+        freq: 'weekly', days: [...ALL_DAYS],
+        // Seeded from the day being viewed: switching to monthly while looking at the
+        // 1st should already mean "the 1st", not make you hunt for it in the grid.
+        monthDays: [Number(target.slice(8, 10))],
+        startDate: todayStr, endDate: '', saveAsPreset: false, carryOver: false,
+      },
+    });
   };
   const openEditTask = (task, { presetMode = false, dateStr = null } = {}) => {
     setModal({
@@ -467,7 +529,9 @@ export default function Ledger() {
         hasTime: !!task.time,
         time: task.time || '09:00',
         goalId: task.goalId || null,
+        freq: isMonthly(task) ? 'monthly' : 'weekly',
         days: task.days ? [...task.days] : [...ALL_DAYS],
+        monthDays: [...monthDaysOf(task)],
         startDate: task.createdDate || '',
         endDate: task.endDate || '',
         saveAsPreset: false,
@@ -477,19 +541,20 @@ export default function Ledger() {
     setOpenMenuTaskId(null);
   };
 
-  const toggleFormDay = (dow) => {
+  // Shared by the weekday chips and the day-of-month grid: both keep at least one
+  // selection, since a repeat that matches nothing would just be an invisible task.
+  const toggleFormField = (field, value) => {
     setModal((m) => {
-      const cur = m.form.days;
-      let next;
-      if (cur.includes(dow)) {
-        if (cur.length === 1) return m; // keep at least one day selected
-        next = cur.filter((x) => x !== dow);
-      } else {
-        next = [...cur, dow];
+      const cur = m.form[field];
+      if (cur.includes(value)) {
+        if (cur.length === 1) return m;
+        return { ...m, form: { ...m.form, [field]: cur.filter((x) => x !== value) } };
       }
-      return { ...m, form: { ...m.form, days: next } };
+      return { ...m, form: { ...m.form, [field]: [...cur, value] } };
     });
   };
+  const toggleFormDay = (dow) => toggleFormField('days', dow);
+  const toggleFormMonthDay = (n) => toggleFormField('monthDays', n);
 
   const saveTask = () => {
     const f = modal.form;
@@ -501,11 +566,17 @@ export default function Ledger() {
       const startDate = f.startDate || todayStr;
       const endDate = f.endDate || null;
       if (endDate && endDate < startDate) return;
+      const freq = f.freq === 'monthly' ? 'monthly' : 'weekly';
+      // Fall back to the start date's own day of the month rather than refusing to
+      // save, so an empty grid can't leave you with a button that does nothing.
+      const monthDays = freq === 'monthly'
+        ? [...(f.monthDays && f.monthDays.length ? f.monthDays : [Number(startDate.slice(8, 10))])].sort((a, b) => a - b)
+        : [];
+      const shape = { name: f.name.trim(), time, goalId: f.goalId, freq, days, monthDays, createdDate: startDate, endDate };
       if (modal.mode === 'add') {
-        const newTemplate = { id: genId(), name: f.name.trim(), time, goalId: f.goalId, days, createdDate: startDate, endDate };
-        saveRecurring([...recurring, newTemplate]);
+        saveRecurring([...recurring, { id: genId(), ...shape }]);
       } else {
-        saveRecurring(recurring.map((r) => (r.id === f.id ? { ...r, name: f.name.trim(), time, goalId: f.goalId, days, createdDate: startDate, endDate } : r)));
+        saveRecurring(recurring.map((r) => (r.id === f.id ? { ...r, ...shape } : r)));
       }
     } else if (modal.presetMode) {
       if (modal.mode === 'add') {
@@ -1029,21 +1100,49 @@ export default function Ledger() {
 
             {modal.form.repeats && (
               <div className="dt-field">
-                <label className="dt-field-label">{t('task.whichDays')}</label>
-                <div className="dt-preset-row">
-                  <button className="dt-preset-btn" onClick={() => setModal({ ...modal, form: { ...modal.form, days: [...ALL_DAYS] } })}>{t('days.everyDay')}</button>
-                  <button className="dt-preset-btn" onClick={() => setModal({ ...modal, form: { ...modal.form, days: [1, 2, 3, 4, 5] } })}>{t('days.weekdays')}</button>
-                  <button className="dt-preset-btn" onClick={() => setModal({ ...modal, form: { ...modal.form, days: [0, 6] } })}>{t('days.weekends')}</button>
-                </div>
-                <div className="dt-day-chips">
-                  {WEEKDAY_ORDER.map((dow, i) => (
+                <label className="dt-field-label">{t('task.repeatEvery')}</label>
+                <div className="dt-segmented" style={{ marginBottom: 10 }}>
+                  {['weekly', 'monthly'].map((fq) => (
                     <button
-                      key={dow}
-                      className={`dt-day-chip ${modal.form.days.includes(dow) ? 'active' : ''}`}
-                      onClick={() => toggleFormDay(dow)}
-                    >{weekdayLetters[i]}</button>
+                      key={fq}
+                      className={`dt-segmented-btn ${modal.form.freq === fq ? 'active' : ''}`}
+                      onClick={() => setModal({ ...modal, form: { ...modal.form, freq: fq } })}
+                    >{t(fq === 'weekly' ? 'task.freqWeekly' : 'task.freqMonthly')}</button>
                   ))}
                 </div>
+
+                {modal.form.freq === 'monthly' ? (
+                  <>
+                    <div className="dt-subfield-label">{t('task.whichDates')}</div>
+                    <div className="dt-month-chips">
+                      {MONTH_DAYS.map((n) => (
+                        <button
+                          key={n}
+                          className={`dt-day-chip ${modal.form.monthDays.includes(n) ? 'active' : ''}`}
+                          onClick={() => toggleFormMonthDay(n)}
+                        >{n}</button>
+                      ))}
+                    </div>
+                    <div className="dt-hint" style={{ marginTop: 8, marginBottom: 0 }}>{t('task.monthEndHint')}</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="dt-preset-row">
+                      <button className="dt-preset-btn" onClick={() => setModal({ ...modal, form: { ...modal.form, days: [...ALL_DAYS] } })}>{t('days.everyDay')}</button>
+                      <button className="dt-preset-btn" onClick={() => setModal({ ...modal, form: { ...modal.form, days: [1, 2, 3, 4, 5] } })}>{t('days.weekdays')}</button>
+                      <button className="dt-preset-btn" onClick={() => setModal({ ...modal, form: { ...modal.form, days: [0, 6] } })}>{t('days.weekends')}</button>
+                    </div>
+                    <div className="dt-day-chips">
+                      {WEEKDAY_ORDER.map((dow, i) => (
+                        <button
+                          key={dow}
+                          className={`dt-day-chip ${modal.form.days.includes(dow) ? 'active' : ''}`}
+                          onClick={() => toggleFormDay(dow)}
+                        >{weekdayLetters[i]}</button>
+                      ))}
+                    </div>
+                  </>
+                )}
                 {modal.mode === 'edit' && (
                   <div className="dt-hint" style={{ marginTop: 10 }}>{t('task.editAffectsAll')}</div>
                 )}
@@ -1421,7 +1520,7 @@ export default function Ledger() {
                 onStartRename={() => startEditGoalName(goalById(manageGoalId))}
                 onCommitRename={commitEditGoalName}
                 onCancelRename={() => setEditingGoalId(null)}
-                onEditRecurring={(r) => openEditTask({ id: r.id, name: r.name, time: r.time, goalId: r.goalId, days: r.days, createdDate: r.createdDate, endDate: r.endDate, isRecurring: true }, { presetMode: true })}
+                onEditRecurring={(r) => openEditTask({ id: r.id, name: r.name, time: r.time, goalId: r.goalId, freq: r.freq, days: r.days, monthDays: r.monthDays, createdDate: r.createdDate, endDate: r.endDate, isRecurring: true }, { presetMode: true })}
                 onDeleteRecurring={deleteRecurringEntirely}
                 onEditPreset={(p) => openEditTask({ id: p.id, name: p.name, time: p.time, goalId: p.goalId, isRecurring: false }, { presetMode: true })}
                 onDeletePreset={deletePreset}
@@ -1577,7 +1676,7 @@ function GoalDetail({
             </div>
           </div>
           <div className="dt-recurring-meta">
-            <span>{summarizeDays(r.days, t, weekdayAbbr)}</span>
+            <span>{summarizeRepeat(r, t, weekdayAbbr, locale)}</span>
             {r.time && <span className="dt-time-badge">{r.time}</span>}
             {r.createdDate > todayStr && <span>from {shortDate(r.createdDate)}</span>}
             {r.endDate && <span>until {shortDate(r.endDate)}</span>}
