@@ -35,6 +35,11 @@ async function currentUserId() {
   throw new Error('Not signed in');
 }
 
+// The signed-in user id when one is already resolved, with no round-trip. The
+// write-ahead cache in Ledger needs it to key its localStorage entry per account, and
+// runs at moments — a day write, the page being hidden — with no time for an await.
+export const knownUserId = () => cachedUserId;
+
 export const storage = {
   async get(key) {
     const user_id = await currentUserId();

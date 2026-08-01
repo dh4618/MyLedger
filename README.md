@@ -236,6 +236,29 @@ The storage keys and data shapes are identical, so it transfers as-is.
   The theme is a fifth key, `theme`, holding a bare id string — no schema change was needed.
 - `src/storage.js` is the only file that knows about Supabase. Swapping to a different
   backend later means rewriting that one file.
+- **Day writes are debounced, so they need a write-ahead copy.** `saveDay` batches for
+  600ms before going to the network, which leaves a window where a tick exists only in
+  memory. An installed iOS web app is very good at closing inside that window — and
+  `beforeunload`, which the flush used to rely on, essentially never fires there.
+  Two things close the gap, in `src/pendingWrites.js` and the lifecycle effect in
+  `Ledger.jsx`:
+  - The blob is mirrored to `localStorage` *synchronously* on every day write, and the
+    mirror is cleared only once the server confirms. A mirror still present at the next
+    launch means the last write never landed, so it is replayed. This also covers
+    ticking something while offline.
+  - The flush is triggered by `visibilitychange` → hidden and `pagehide`, not just
+    `beforeunload`. `visibilitychange` fires while the page is still alive, so the
+    write has time to finish instead of being abandoned mid-flight.
+
+  The mirror is keyed by user id and discarded if it belongs to a different account.
+  Replay is last-writer-wins, like every other write to this single-blob model, so a
+  second device that was edited in between can be overwritten — the alternative was
+  silently dropping the tick we are trying to save.
+- **A lost tick doesn't just look unticked — it moves the task.** A keep-until-complete
+  task's home day is derived from where its completion is recorded, so losing the write
+  re-homes it to today, where it reappears looking like it was never done. That is the
+  symptom the write-ahead copy exists to prevent, and it's why the bug reads as a
+  carry-over problem rather than a saving one.
 - `src/storage.js` resolves your user id from the locally persisted session rather than
   calling `getUser()` (a network request) on every read and write. Beyond being much faster,
   that's what stops a flaky connection from looking like being signed out.
