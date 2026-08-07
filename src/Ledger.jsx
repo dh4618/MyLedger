@@ -1,22 +1,24 @@
 import { storage, knownUserId } from './storage';
-import { rememberUnflushed, readUnflushed, clearUnflushed } from './pendingWrites';
+import { readUnflushed, clearUnflushed } from './pendingWrites';
+import useDurableBlob from './useDurableBlob';
+import GroceryList from './GroceryList';
+import { emptyGroceries, normalizeGroceries, addItem, toggleItem, removeItem, clearBought } from './groceries';
 import { supabase } from './supabase';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays, Sparkles, ChevronDown, Trophy, RotateCcw } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays, Sparkles, ChevronDown, Trophy, RotateCcw, ShoppingCart } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
 import { useLang } from './i18n/LanguageProvider';
 import ProgressBar from './ProgressBar';
 import PasswordSetting from './PasswordSetting';
 import LanguagePicker from './LanguagePicker';
 import { GOAL_ICONS, GoalIcon, hasGoalIcon } from './goalIcons';
+import { genId } from './ids';
 
 const GOAL_COLORS = ['#3F5A44', '#3E5C76', '#B8862F', '#9C4430', '#6B5B87', '#3F7A6B'];
 const NO_GOAL_ID = '__no_goal__';
 const NO_GOAL_COLOR = '#8A8577';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // Monday-first, values match JS Date.getDay()
-
-const genId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
 const pad = (n) => String(n).padStart(2, '0');
 const toDateStr = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -165,8 +167,8 @@ export default function Ledger() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState('');
   const [importStatus, setImportStatus] = useState('');
-  const latestDays = useRef({});
-  const daysFlushTimer = useRef(null);
+  const [groceries, setGroceries] = useState(emptyGroceries());
+  const [showGroceries, setShowGroceries] = useState(false);
   const writesLocked = useRef(false);
 
   const todayStr = toDateStr(new Date());
@@ -194,38 +196,48 @@ export default function Ledger() {
       let r = [];
       let p = [];
       let allDays = {};
+      let shopping = emptyGroceries();
       let rateLimited = false;
 
-      // Fetch the four core keys together. On a healthy load this is one quick round-trip
+      // Fetch the five core keys together. On a healthy load this is one quick round-trip
       // with no artificial pauses; the retry/backoff only engages if a read actually fails.
-      const [gr, rr, pr, dr] = await Promise.all([
+      const [gr, rr, pr, dr, sr] = await Promise.all([
         readKey('goals'),
         readKey('recurring-tasks'),
         readKey('presets'),
         readKey('all-days'),
+        readKey('groceries'),
       ]);
-      if (gr.rateLimited || rr.rateLimited || pr.rateLimited || dr.rateLimited) rateLimited = true;
+      if ([gr, rr, pr, dr, sr].some((x) => x.rateLimited)) rateLimited = true;
       if (gr.res && gr.res.value) { try { g = JSON.parse(gr.res.value); } catch (e) {} }
       if (rr.res && rr.res.value) { try { r = JSON.parse(rr.res.value); } catch (e) {} }
       if (pr.res && pr.res.value) { try { p = JSON.parse(pr.res.value); } catch (e) {} }
       if (dr.res && dr.res.value) { try { allDays = JSON.parse(dr.res.value); } catch (e) {} }
+      if (sr.res && sr.res.value) { try { shopping = normalizeGroceries(JSON.parse(sr.res.value)); } catch (e) {} }
 
-      // A mirror left behind by the previous session means its last day write never
-      // reached the server — the app was closed or offline before it went out. Prefer
-      // it over what the server returned, and re-send it below.
-      const unflushed = !rateLimited && readUnflushed(knownUserId());
-      let replaying = false;
-      if (unflushed && unflushed !== (dr.res && dr.res.value)) {
-        try { allDays = JSON.parse(unflushed); replaying = true; } catch (e) { clearUnflushed(); }
-      } else if (unflushed) {
-        clearUnflushed(); // already on the server; nothing to replay
-      }
+      // A mirror left behind by the previous session means that key's last write never
+      // reached the server — the app was closed or offline before it went out. Prefer it
+      // over what the server returned, and re-send it below.
+      const takeUnflushed = (key, fromServer, parse) => {
+        if (rateLimited) return null;
+        const raw = readUnflushed(key, knownUserId());
+        if (!raw) return null;
+        if (raw === fromServer) { clearUnflushed(key); return null; } // already there
+        try { return parse(JSON.parse(raw)); } catch (e) { clearUnflushed(key); return null; }
+      };
+      const replayDays = takeUnflushed('all-days', dr.res && dr.res.value, (v) => v);
+      const replayShopping = takeUnflushed('groceries', sr.res && sr.res.value, normalizeGroceries);
+      if (replayDays) allDays = replayDays;
+      if (replayShopping) shopping = replayShopping;
 
       // Show the loaded data immediately — don't make the user wait on migration.
       setGoals(g);
       setRecurring(r);
       setPresets(p);
       setDays(allDays);
+      setGroceries(shopping);
+      daysBlob.adopt(allDays);
+      groceryBlob.adopt(shopping);
       setLoading(false);
 
       if (rateLimited) {
@@ -238,10 +250,8 @@ export default function Ledger() {
         return;
       }
 
-      if (replaying) {
-        latestDays.current = allDays;
-        await flushDays();
-      }
+      if (replayDays) await daysBlob.flush();
+      if (replayShopping) await groceryBlob.flush();
     })();
   }, []);
 
@@ -297,52 +307,31 @@ export default function Ledger() {
     setPresets(next);
     await persist('presets', JSON.stringify(next), 'error.label.presets');
   };
-  const flushDays = useCallback(async () => {
-    if (daysFlushTimer.current) {
-      clearTimeout(daysFlushTimer.current);
-      daysFlushTimer.current = null;
-    }
-    const snapshot = latestDays.current;
-    const ok = await persist('all-days', JSON.stringify(snapshot), 'error.label.days');
-    // The local copy is only safe to drop once the server has actually taken the write.
-    if (ok) clearUnflushed();
-    return ok;
-  }, []);
+  // The two blobs that are edited a tap at a time, so both are debounced and both need
+  // to survive the app being closed mid-write. See useDurableBlob for why that matters.
+  const daysBlob = useDurableBlob({ storageKey: 'all-days', label: 'error.label.days', persist, locked: writesLocked });
+  const groceryBlob = useDurableBlob({ storageKey: 'groceries', label: 'error.label.groceries', persist, locked: writesLocked });
+
   const saveDay = (dateStr, next) => {
-    const updated = { ...latestDays.current, [dateStr]: next };
-    latestDays.current = updated;
+    const updated = { ...daysBlob.peek(), [dateStr]: next };
     setDays(updated);
-    // Written synchronously, ahead of the debounce, so a tick survives the app being
-    // closed inside the 600ms window — or the network write failing outright.
-    rememberUnflushed(knownUserId(), JSON.stringify(updated));
-    if (daysFlushTimer.current) clearTimeout(daysFlushTimer.current);
-    daysFlushTimer.current = setTimeout(() => { flushDays(); }, 600);
+    daysBlob.save(updated);
+  };
+  const saveGroceries = (next) => {
+    setGroceries(next);
+    groceryBlob.save(next);
   };
 
-  // Keep the latest-days ref in sync with state (covers the load path setting days directly).
-  useEffect(() => { latestDays.current = days; }, [days]);
-
-  // Flush pending day changes the moment the app goes away.
-  //
-  // This used to listen on `beforeunload` alone, which an installed iOS web app
-  // essentially never fires — switching apps, locking the phone and swiping the app
-  // away all skip it. `visibilitychange` is the one that does fire, and it fires while
-  // the page is still alive, so an ordinary write has time to complete rather than
-  // being abandoned mid-flight the way an unload-time write is.
-  useEffect(() => {
-    const flushNow = () => {
-      if (daysFlushTimer.current && !writesLocked.current) flushDays();
-    };
-    const onVisibility = () => { if (document.visibilityState === 'hidden') flushNow(); };
-    document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('pagehide', flushNow);
-    window.addEventListener('beforeunload', flushNow); // desktop tab close
-    return () => {
-      document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('pagehide', flushNow);
-      window.removeEventListener('beforeunload', flushNow);
-    };
-  }, [flushDays]);
+  // The reducers live in groceries.js and are pure, so this layer is only wiring. Adding
+  // returns the row to flash — including when the name was already there, which is how a
+  // duplicate reads as "already on the list" rather than as nothing happening.
+  const addGrocery = (name) => {
+    const result = addItem(groceries, name);
+    if (!result) return null;
+    if (result.next !== groceries) saveGroceries(result.next);
+    return result.id;
+  };
+  const outstandingGroceries = groceries.items.filter((x) => !x.bought).length;
 
   const getDay = (dateStr) => days[dateStr] || defaultDay();
 
@@ -467,9 +456,10 @@ export default function Ledger() {
       message: t('account.signOutConfirm'),
       confirmLabel: t('account.signOut'),
       onConfirm: async () => {
-        // Day writes are debounced, so flush anything pending before the session
-        // goes away and the write would be rejected.
-        if (daysFlushTimer.current) await flushDays();
+        // Day and grocery writes are debounced, so flush anything pending before the
+        // session goes away and the write would be rejected.
+        if (daysBlob.pending()) await daysBlob.flush();
+        if (groceryBlob.pending()) await groceryBlob.flush();
         await supabase.auth.signOut();
       },
     });
@@ -642,7 +632,7 @@ export default function Ledger() {
   const openExportModal = async () => {
     setShowExportModal(true);
     try {
-      const backup = { exportedAt: new Date().toISOString(), goals, recurring, presets, days: latestDays.current };
+      const backup = { exportedAt: new Date().toISOString(), goals, recurring, presets, days: daysBlob.peek(), groceries };
       setExportJson(JSON.stringify(backup, null, 2));
     } catch (e) {
       setExportJson(t('backup.exportFailed'));
@@ -690,9 +680,15 @@ export default function Ledger() {
           if (Array.isArray(parsed.recurring)) await saveRecurring(parsed.recurring);
           if (Array.isArray(parsed.presets)) await savePresets(parsed.presets);
           if (parsed.days && typeof parsed.days === 'object') {
-            latestDays.current = parsed.days;
             setDays(parsed.days);
-            await flushDays();
+            daysBlob.adopt(parsed.days);
+            await daysBlob.flush();
+          }
+          if (parsed.groceries && typeof parsed.groceries === 'object') {
+            const restored = normalizeGroceries(parsed.groceries);
+            setGroceries(restored);
+            groceryBlob.adopt(restored);
+            await groceryBlob.flush();
           }
           setImportStatus('');
           setImportText('');
@@ -879,9 +875,17 @@ export default function Ledger() {
                 <div className="dt-tagline">{t('app.tagline')}</div>
               </div>
             </div>
-            <button className="dt-settings-btn" title={t('manage.title')} onClick={() => { setManageGoalId(null); setShowAddGoalInManage(false); setIconPickerGoalId(null); setShowManage(true); }}>
-              <Settings size={20} />
-            </button>
+            <div className="dt-topbar-actions">
+              {/* The badge is the whole point of putting this in the header rather than
+                  inside Manage: you can see there's shopping to do without opening it. */}
+              <button className="dt-cart-btn" title={t('grocery.title')} onClick={() => setShowGroceries(true)}>
+                <ShoppingCart size={20} />
+                {outstandingGroceries > 0 && <span className="dt-cart-badge">{outstandingGroceries}</span>}
+              </button>
+              <button className="dt-settings-btn" title={t('manage.title')} onClick={() => { setManageGoalId(null); setShowAddGoalInManage(false); setIconPickerGoalId(null); setShowManage(true); }}>
+                <Settings size={20} />
+              </button>
+            </div>
           </div>
 
           <div className="dt-goals-row">
@@ -1321,6 +1325,17 @@ export default function Ledger() {
             </div>
           </div>
         </div>
+      )}
+
+      {showGroceries && (
+        <GroceryList
+          list={groceries}
+          onAdd={addGrocery}
+          onToggle={(id) => saveGroceries(toggleItem(groceries, id))}
+          onRemove={(id) => saveGroceries(removeItem(groceries, id))}
+          onClearBought={() => saveGroceries(clearBought(groceries))}
+          onClose={() => setShowGroceries(false)}
+        />
       )}
 
       {showManage && (
