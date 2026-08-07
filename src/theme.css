@@ -365,9 +365,11 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 /* Two topbar buttons, styled alike but kept as distinct classes — one class for both
    would make "the settings button" ambiguous to anything selecting for it. */
 .dt-settings-btn,
-.dt-cart-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px; display: flex; }
+.dt-cart-btn,
+.dt-capture-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px; display: flex; }
 .dt-settings-btn:hover,
-.dt-cart-btn:hover { color: var(--ink); }
+.dt-cart-btn:hover,
+.dt-capture-btn:hover { color: var(--ink); }
 .dt-topbar-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 /* The count of things still to buy, so the header answers "is there shopping?" without
    being opened. Positioned on the button, which is why that one is relative. */
@@ -790,6 +792,52 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 .dt-preset-toggle { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); white-space: nowrap; cursor: pointer; flex-shrink: 0; }
 .dt-preset-toggle input { width: 14px; height: 14px; accent-color: var(--moss); }
 .dt-empty-manage { font-size: 13px; color: var(--muted); padding: 20px 0; text-align: center; }
+
+/* ---- Natural-language capture ---- */
+.dt-capture-input-row { display: flex; gap: 8px; align-items: flex-start; }
+/* A textarea rather than an input: dictated sentences run long, and seeing the whole
+   thing before sending is how you catch a misheard word. */
+.dt-capture-input { flex: 1; resize: none; line-height: 1.35; font-family: var(--font-ui); }
+.dt-capture-send {
+  flex: 0 0 auto;
+  width: 46px;
+  align-self: stretch;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--moss);
+  color: var(--raised);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+}
+.dt-capture-send:disabled { opacity: 0.45; cursor: default; }
+.dt-capture-row { display: flex; align-items: flex-start; gap: 12px; padding: 11px 4px; border-bottom: 1px solid var(--line); }
+/* Excluded rows stay visible and re-includable — a proposal you can't see is one you
+   can't check. */
+.dt-capture-row.dropped { opacity: 0.4; }
+.dt-capture-row.dropped .dt-capture-name { text-decoration: line-through; }
+.dt-capture-main { flex: 1; cursor: pointer; min-width: 0; }
+.dt-capture-name { font-size: 15px; font-weight: 500; line-height: 1.3; word-break: break-word; }
+.dt-capture-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 5px; }
+.dt-capture-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--paper);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.dt-capture-chip.matched { background: var(--accent-soft); color: var(--moss); }
+.dt-capture-ask { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); margin-top: 8px; cursor: pointer; }
+.dt-capture-ask input { width: 15px; height: 15px; accent-color: var(--moss); }
+.dt-capture-unclear { font-size: 13px; color: var(--muted); padding: 10px 4px; border-bottom: 1px solid var(--line); }
+.dt-capture-error { font-size: 13px; color: var(--brick); padding: 14px 0 0; }
+.dt-capture-actions { display: flex; gap: 10px; margin-top: 18px; }
+.dt-capture-actions button { flex: 1; }
 
 /* ---- Groceries ---- */
 .dt-grocery-title { display: inline-flex; align-items: center; gap: 8px; }
