@@ -219,6 +219,43 @@ the app flashing the wrong colours on launch.
 
 ---
 
+## Groceries
+
+The **shopping trolley** in the header opens a standing list, with a badge showing how many
+items are still to buy. Type an item and press enter; the field keeps focus, so a few
+things go in at once. Ticking something off strikes it out and drops it below a divider
+rather than deleting it, so you can see what's already in the trolley and untick a mis-tap;
+**Clear bought** removes them in one go and remembers their names as **Buy again** chips,
+which re-add a weekly staple in one tap.
+
+This is the only thing in the app that isn't anchored to a date, and that's the point of
+its being separate. Filing groceries as tasks under a "Groceries" goal would technically
+work, but a dozen items would bury the three things you actually planned to do that day and
+count against the day's progress bar. So it gets its own `kv` key and its own sheet, and
+touches nothing else:
+
+```js
+{ items: [{ id, name, bought, addedAt }], recent: ['Milk', …] }
+```
+
+`recent` is what you last cleared, newest first, capped at 12. A missing key means an empty
+list, so there is nothing to migrate. The reducers in `src/groceries.js` are pure functions
+of `(list, input) → list`, which is why `src/GroceryList.jsx` is only markup and
+`Ledger.jsx` only wiring.
+
+Two behaviours worth knowing, both matched on the trimmed, case-folded name so `Milk` and
+`milk ` are the same thing:
+
+- Adding something **already on the list** doesn't duplicate it — the existing row flashes
+  instead, so it reads as "already there" rather than as nothing happening.
+- Adding something **already bought** un-ticks it and lifts it back to the top. You've
+  decided you need it again, which is better served than by a second identical row.
+
+The add field is deliberately **not** autofocused. At the shop you're ticking things off,
+and a keyboard covering the list is worse than one extra tap when you do want to type.
+
+---
+
 ## Moving your existing data across
 
 1. In the artifact version: **Manage → Export**, then **Download file** (or copy the text).
@@ -233,19 +270,23 @@ The storage keys and data shapes are identical, so it transfers as-is.
 - Data model is deliberately simple: one `kv` row per key per user. `all-days` holds the
   entire day history as a single JSON blob, which keeps request counts low. If it ever grows
   unwieldy (many years in), splitting it per-year would be the natural next step.
-  The theme is a fifth key, `theme`, holding a bare id string — no schema change was needed.
+  The theme is another key, `theme`, holding a bare id string, and the shopping list another,
+  `groceries` — neither needed a schema change. **Anything added here also has to go into
+  Export and Restore** (`openExportModal` and the restore path in `Ledger.jsx`), or a restore
+  silently wipes it.
 - `src/storage.js` is the only file that knows about Supabase. Swapping to a different
   backend later means rewriting that one file.
-- **Day writes are debounced, so they need a write-ahead copy.** `saveDay` batches for
-  600ms before going to the network, which leaves a window where a tick exists only in
-  memory. An installed iOS web app is very good at closing inside that window — and
-  `beforeunload`, which the flush used to rely on, essentially never fires there.
-  Two things close the gap, in `src/pendingWrites.js` and the lifecycle effect in
-  `Ledger.jsx`:
-  - The blob is mirrored to `localStorage` *synchronously* on every day write, and the
-    mirror is cleared only once the server confirms. A mirror still present at the next
-    launch means the last write never landed, so it is replayed. This also covers
-    ticking something while offline.
+- **Tap-at-a-time writes are debounced, so they need a write-ahead copy.** Day and grocery
+  writes batch for 600ms before going to the network, which leaves a window where a change
+  exists only in memory. An installed iOS web app is very good at closing inside that
+  window — and `beforeunload`, which the flush used to rely on, essentially never fires
+  there. `src/useDurableBlob.js` closes the gap, and both `all-days` and `groceries` go
+  through it:
+  - The blob is mirrored to `localStorage` *synchronously* on every write
+    (`src/pendingWrites.js`, one entry per storage key), and the mirror is cleared only
+    once the server confirms. A mirror still present at the next launch means the last
+    write never landed, so it is replayed. This also covers ticking something off — or
+    adding to the shopping list — with no connection.
   - The flush is triggered by `visibilitychange` → hidden and `pagehide`, not just
     `beforeunload`. `visibilitychange` fires while the page is still alive, so the
     write has time to finish instead of being abandoned mid-flight.

@@ -134,6 +134,15 @@ export const en = {
   'goal.lockedHint': 'Achieved — reopen it to add anything new.',
   'goal.reopenConfirm': 'Untick this? {goal} was achieved on {date}, so it will be reopened.',
 
+  'grocery.title': 'Groceries',
+  'grocery.addPlaceholder': 'Add an item…',
+  'grocery.add': 'Add',
+  'grocery.remove': 'Remove',
+  'grocery.buyAgain': 'Buy again',
+  'grocery.empty': 'Nothing on the list. Add things as you think of them.',
+  'grocery.boughtSection': 'Bought · {n}',
+  'grocery.clearBought': 'Clear bought ({n})',
+
   'manage.title': 'Manage',
   'manage.noGoals': 'No goals yet.',
   'manage.addGoal': 'Add goal',
@@ -185,6 +194,7 @@ export const en = {
   'error.label.recurring': 'recurring tasks',
   'error.label.presets': 'presets',
   'error.label.days': 'day data',
+  'error.label.groceries': 'the groceries list',
 
   'mascot.sprout.name': 'Sprout',
   'mascot.sprout.blurb': 'a cheerful garden frog',
@@ -333,6 +343,15 @@ export const zhCN = {
   'goal.lockedHint': '已达成 —— 如需添加内容，请先重新开启。',
   'goal.reopenConfirm': '取消勾选？{goal} 已于 {date} 达成，这会重新开启它。',
 
+  'grocery.title': '购物清单',
+  'grocery.addPlaceholder': '添加一项…',
+  'grocery.add': '添加',
+  'grocery.remove': '删除',
+  'grocery.buyAgain': '再买一次',
+  'grocery.empty': '清单是空的。想到什么就随手加进来。',
+  'grocery.boughtSection': '已买 · {n}',
+  'grocery.clearBought': '清除已买（{n}）',
+
   'manage.title': '管理',
   'manage.noGoals': '还没有目标。',
   'manage.addGoal': '添加目标',
@@ -383,6 +402,7 @@ export const zhCN = {
   'error.label.recurring': '重复任务',
   'error.label.presets': '预设',
   'error.label.days': '日程数据',
+  'error.label.groceries': '购物清单',
 
   'mascot.sprout.name': '小芽',
   'mascot.sprout.blurb': '快乐的花园青蛙',
