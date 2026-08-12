@@ -219,6 +219,83 @@ the app flashing the wrong colours on launch.
 
 ---
 
+## Capture — say it, review it, add it
+
+The **sparkle** in the header opens a box you can type into, or dictate into with the
+microphone key on your keyboard. Say *"go to the shop at 4 today and we need milk"* and it
+proposes a task at 16:00 and a grocery item; tick off what you want and press Add. It can
+also create repeating tasks (*"gym every Monday and Wednesday"*) and mark things done
+(*"I did the washing up"*).
+
+**Nothing is written until you press Add.** The model only ever proposes — which is the
+whole reason the confirm card exists, and why it can be given a scope this wide. It may add
+tasks and groceries and tick off existing tasks; it may put a task under a goal you already
+have, but it cannot create, rename, or achieve goals, and it cannot edit or delete anything.
+
+Rows are include/exclude rather than editable. If a parse comes out wrong, untick it and say
+it again — a second task editor that has to stay in step with the real one is a lot of
+surface for a case that ends in "type it yourself" anyway.
+
+### It needs a server, and that's the interesting part
+
+Everything else in this app is a static bundle plus Supabase. Calling a model needs an API
+key, and **anything the browser can read is public** — the same reason the setup section
+warns you off putting a secret Supabase key in the frontend. So this feature adds the repo's
+first server-side code, `api/parse.js`, which Vercel serves as a function with no config
+file needed.
+
+Two rules there are load-bearing:
+
+- **`ANTHROPIC_API_KEY` must not be named `VITE_ANYTHING`.** Vite inlines every `VITE_*`
+  variable into the client bundle, so the prefix alone would publish your key. The
+  verification script greps the built bundle to make sure the SDK and the key never reach it.
+- **The endpoint is authenticated.** Without that it is an open, billable LLM proxy sitting
+  on a public URL. The browser sends its Supabase access token; the function checks it
+  against `/auth/v1/user` and takes the user id from the reply. There is also a per-user
+  daily cap in a `kv` row — that one is a runaway-loop guard, not a security boundary.
+
+**Setup.** In Vercel → Settings → Environment Variables, add:
+
+| Name | Value |
+|---|---|
+| `ANTHROPIC_API_KEY` | a key from console.anthropic.com — **no `VITE_` prefix** |
+| `SUPABASE_URL` | the same URL as `VITE_SUPABASE_URL` |
+| `SUPABASE_PUBLISHABLE_KEY` | the same key as `VITE_SUPABASE_PUBLISHABLE_KEY` |
+
+The last two are duplicates of the frontend values under unprefixed names, so it's obvious
+which side of the wall each one is on. Locally, `npm run dev` serves the app but not the
+function — use `vercel dev` to exercise capture end to end.
+
+The model is **Claude Haiku 4.5** — the fast, cheap tier, which suits one short sentence.
+It's one string at the top of `api/parse.js` if you ever want to change it. Three things
+there are model-specific and will bite if you switch: Haiku 4.5 **errors** on
+`output_config.effort`, its minimum cacheable prompt is 4096 tokens (so `cache_control`
+would silently do nothing here), and omitting `thinking` means no thinking, which is what a
+fast parse wants.
+
+### Never trust the model's ids
+
+`src/parseGuard.js` re-checks everything before it is displayed, let alone written. The
+model is handed real ids and told to use only those, but "told to" is not a guarantee — an
+invented `goalId` arrives looking exactly like a real one. So every id is checked against
+the data that was actually sent, every date must parse and land near today, times must be
+`HH:MM`, weekdays must be 0–6. A completion is the strictest: the task id **and** its day
+must both be in the candidate list, because that is the one action that edits history.
+
+Preset matching runs in two layers, which is what lets confident matches be used and
+unsure ones be asked about:
+
+- If the model returns a `presetId` that survives validation, the row shows a *your preset*
+  chip and inherits the preset's time and goal.
+- If it doesn't, a local word-overlap match offers *"Use your preset 'Brush teeth'
+  instead?"* as a checkbox. It is **never** applied on its own — an unticked suggestion
+  leaves the task exactly as it was said.
+
+These are pure functions, so they are tested directly, without a browser or a model. That
+test is the most valuable one in the feature.
+
+---
+
 ## Groceries
 
 The **shopping trolley** in the header opens a standing list, with a badge showing how many
@@ -276,6 +353,10 @@ The storage keys and data shapes are identical, so it transfers as-is.
   silently wipes it.
 - `src/storage.js` is the only file that knows about Supabase. Swapping to a different
   backend later means rewriting that one file.
+- **`api/` is the only server-side code, and the only place a secret may live.** Everything
+  under `src/` is compiled into a public bundle. If you add another function, keep its
+  secrets out of `VITE_*` names and authenticate it the way `api/parse.js` does — an
+  unauthenticated function on a public URL is an open invitation.
 - **Tap-at-a-time writes are debounced, so they need a write-ahead copy.** Day and grocery
   writes batch for 600ms before going to the network, which leaves a window where a change
   exists only in memory. An installed iOS web app is very good at closing inside that
