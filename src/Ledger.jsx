@@ -6,7 +6,7 @@ import ReportPanel from './ReportPanel';
 import { emptyGroceries, normalizeGroceries, addItem, toggleItem, removeItem, clearBought } from './groceries';
 import { supabase } from './supabase';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays, Sparkles, ChevronDown, Trophy, RotateCcw, ShoppingCart, BarChart3 } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays, Sparkles, ChevronDown, Trophy, RotateCcw, ShoppingCart, BarChart3, Flame } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
 import { useLang } from './i18n/LanguageProvider';
 import ProgressBar from './ProgressBar';
@@ -15,6 +15,7 @@ import LanguagePicker from './LanguagePicker';
 import { GOAL_ICONS, GoalIcon, hasGoalIcon } from './goalIcons';
 import { genId } from './ids';
 import { toDateStr, fromDateStr, addDays, startOfWeek, daysInMonth, formatHeadline, formatShortDate, formatMonthYear } from './dates';
+import { computeStreak } from './streak';
 
 const GOAL_COLORS = ['#3F5A44', '#3E5C76', '#B8862F', '#9C4430', '#6B5B87', '#3F7A6B'];
 const NO_GOAL_ID = '__no_goal__';
@@ -341,6 +342,8 @@ export default function Ledger() {
   }, [days, recurring, carryHomeDay]);
 
   const goalById = (id) => goals.find((g) => g.id === id);
+
+  const streak = useMemo(() => computeStreak(days, todayStr), [days, todayStr]);
 
   // A goal is auto-marked done when it has no active repeating tasks and every
   // Nothing outstanding under this goal: no repeating task still running, and every
@@ -926,6 +929,16 @@ export default function Ledger() {
 
         <ProgressBar done={doneCount} total={tasks.length} scopeLabel={activeGoalName} />
 
+        {/* Only on today. The streak is about today whichever day you're looking at, so
+            showing it while you browse last Tuesday would read as a fact about that day. */}
+        {selectedDateStr === todayStr && streak.current > 0 && (
+          <div className={`dt-streak-line ${streak.includesToday ? 'live' : 'open'}`}>
+            <Flame size={14} />
+            <span className="count">{t('streak.days', { n: streak.current })}</span>
+            {!streak.includesToday && <span className="hint">· {t('streak.keepGoing')}</span>}
+          </div>
+        )}
+
         <div className="dt-body">
           {tasks.length === 0 && (
             <div className="dt-empty-state">
@@ -1294,6 +1307,7 @@ export default function Ledger() {
           todayStr={todayStr}
           locale={locale}
           noGoalColor={NO_GOAL_COLOR}
+          streak={streak}
           onClose={() => setShowReport(false)}
         />
       )}

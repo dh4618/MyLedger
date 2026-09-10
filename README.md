@@ -344,6 +344,21 @@ The storage keys and data shapes are identical, so it transfers as-is.
       strike-through made indistinguishable from done.
   - Promoting an ad-hoc task to a preset moved from a per-row checkbox into the
     instance's `⋮` menu — same capability, one less control on every row.
+- **A streak counts days you did *something*.** A day is active if you ticked anything at
+  all — not if you finished everything. Doing one thing counts, which is what separates a
+  streak that gets you to open the app from one that punishes you for a busy Tuesday.
+  - **Active is tested on the values, not the keys.** Unticking writes
+    `completed[id] = false` rather than deleting the entry, so a day you ticked and then
+    changed your mind about still has a populated map. `Object.keys(...).length` would
+    call that an active day; it isn't.
+  - **An unfinished today does not break the streak.** The day isn't over, so the count
+    runs to yesterday and `includesToday` says whether today is in it yet. Without that
+    the number would reset to zero every morning and re-earn itself by lunchtime.
+  - What *does* break it is any day with nothing ticked, **including a day with nothing
+    scheduled**. That is deliberate: the rule stays sayable in one sentence, and there is
+    nothing to argue about after the fact.
+  - Longest run compares **calendar-adjacent** days. The blob only holds days you touched,
+    so two keys next to each other in sort order can be a month apart.
 - **The progress report scores repeats and counts everything else.** A repeat has a
   schedule, so it has a denominator: *6/8 · 75%*, with one dot per due day so you can see
   where the misses fell. An on-demand task has no schedule, so it gets a plain count —
