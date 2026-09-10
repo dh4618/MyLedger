@@ -39,6 +39,11 @@ const startOfWeek = (d) => {
   return date;
 };
 const defaultDay = () => ({ oneOff: [], completed: {}, removedRecurring: [] });
+
+// Two tasks are "the same activity" if their names match once trimmed and case-folded.
+// Deliberately not comparing time: laundry at 09:00 and laundry with no time are the
+// same thing done at different hours, and the hour still shows on each instance.
+const sameTaskName = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase();
 const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 
 // An absent `freq` means weekly, so templates stored before monthly existed need no
@@ -711,6 +716,21 @@ export default function Ledger() {
       savePresets([...presets, { id: genId(), name: task.name, time: task.time || null, goalId: task.goalId || null }]);
     }
   };
+
+  // A preset is a template for a task with no schedule — laundry, say, which happens on
+  // whichever days you decide. Putting one on today is the whole workflow, so it gets a
+  // single tap here rather than the day page plus the task form.
+  const addPresetToToday = (preset) => {
+    const day = getDay(todayStr);
+    const newTask = { id: genId(), name: preset.name, time: preset.time || null, goalId: preset.goalId || null, carryOver: preset.carryOver };
+    saveDay(todayStr, { ...day, oneOff: [...day.oneOff, newTask] });
+  };
+  // Guards the tap above against silently adding a second copy. Matching on name alone
+  // means re-adding under a different time still reads as already-there, which is the
+  // safer way to be wrong: you can always add it from the day page on purpose.
+  const presetIsOnToday = (preset) => getTasksForDate(todayStr).some(
+    (task) => !task.isRecurring && sameTaskName(task.name, preset.name)
+  );
 
   const addGoal = () => {
     if (!newGoalName.trim()) return;
@@ -1538,6 +1558,9 @@ export default function Ledger() {
 
             {manageGoalId && (
               <GoalDetail
+                /* Keyed by goal so the expanded-history state starts fresh when you
+                   switch goals, instead of carrying one goal's open rows into another. */
+                key={manageGoalId}
                 goal={manageGoalId === NO_GOAL_ID ? { id: null, name: t('common.others'), color: NO_GOAL_COLOR } : goalById(manageGoalId)}
                 isNoGoal={manageGoalId === NO_GOAL_ID}
                 t={t}
@@ -1555,6 +1578,8 @@ export default function Ledger() {
                 presetTasks={presets.filter((p) => belongsToManagedGoal(p))}
                 findMatchingPreset={findMatchingPreset}
                 onTogglePresetForTask={togglePresetForTask}
+                onAddPresetToToday={addPresetToToday}
+                presetIsOnToday={presetIsOnToday}
                 onToggleTaskComplete={(row) => toggleComplete(row.dateStr, row.id)}
                 openMenuTaskId={openMenuTaskId}
                 onToggleRowMenu={(id) => setOpenMenuTaskId(openMenuTaskId === id ? null : id)}
@@ -1640,6 +1665,7 @@ function CalendarPicker({ selectedDateStr, todayStr, locale, t, weekdayLetters, 
 function GoalDetail({
   goal, isNoGoal, goalKind, achievedDate, canAchieve, onSetKind, onAchieve, onReopen,
   todayStr, t, locale, weekdayAbbr, recurringTasks, dayTaskRows, presetTasks, findMatchingPreset, onTogglePresetForTask, onToggleTaskComplete,
+  onAddPresetToToday, presetIsOnToday,
   openMenuTaskId, onToggleRowMenu, onCloseRowMenu, onEditTaskInstance, onDeleteTaskInstance,
   editingGoalId, editingGoalName, setEditingGoalName,
   onBack, onCycleColor, onStartRename, onCommitRename, onCancelRename,
@@ -1647,9 +1673,22 @@ function GoalDetail({
   onEditPreset, onDeletePreset, onAddPreset,
 }) {
   const shortDate = (ds) => formatShortDate(fromDateStr(ds), locale);
-  const unlistedPresets = presetTasks.filter(
-    (p) => !dayTaskRows.some((row) => row.name === p.name && (row.time || null) === (p.time || null))
-  );
+  const [openGroups, setOpenGroups] = useState({});
+  const toggleGroup = (key) => setOpenGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  // Every time a task ran, folded into one row per activity. dayTaskRows arrives sorted
+  // newest first, so insertion order already puts the most recent group at the top and
+  // each group's own instances in date order — no second sort needed.
+  const historyGroups = [];
+  const groupIndex = new Map();
+  dayTaskRows.forEach((row) => {
+    const key = String(row.name || '').trim().toLowerCase();
+    if (!groupIndex.has(key)) {
+      groupIndex.set(key, historyGroups.length);
+      historyGroups.push({ key, name: row.name, rows: [] });
+    }
+    historyGroups[groupIndex.get(key)].rows.push(row);
+  });
 
   return (
     <div>
@@ -1735,51 +1774,87 @@ function GoalDetail({
         </div>
       ))}
 
-      <div className="dt-section-label">{t('manage.oneOffSection')}</div>
-      {dayTaskRows.length === 0 && unlistedPresets.length === 0 && <div className="dt-empty-manage" style={{ padding: '8px 0' }}>{t('common.noneYet')}</div>}
-
-      {dayTaskRows.map((row) => {
-        const isPreset = !!findMatchingPreset(row);
-        const menuKey = `${row.dateStr}-${row.id}`;
+      {/* Presets are templates, so they stay listed however often they are used — the
+          old screen hid a preset as soon as a day row matched it, which made the thing
+          you reach for most often the one thing you could not see. */}
+      <div className="dt-section-label">{t('manage.readyToAdd')}</div>
+      {presetTasks.length === 0 && <div className="dt-empty-manage" style={{ padding: '8px 0' }}>{t('common.noneYet')}</div>}
+      {presetTasks.map((p) => {
+        const onToday = presetIsOnToday(p);
         return (
-          <div key={menuKey} className="dt-task-instance-row" style={{ position: 'relative' }}>
-            <div className={`dt-checkbox ${row.completed ? 'checked' : ''}`} style={{ width: 20, height: 20 }} onClick={() => onToggleTaskComplete(row)}>
-              {row.completed && <Check size={12} color="currentColor" strokeWidth={3} />}
+          <div key={p.id} className="dt-template-row">
+            <div className="dt-template-row-main">
+              <div className="dt-template-row-name">{p.name}</div>
+              {p.time && <span className="dt-time-badge">{p.time}</span>}
             </div>
-            <div className="dt-task-instance-main">
-              <div className={`dt-task-name ${row.completed ? 'done' : ''}`} style={{ fontSize: 14 }}>{row.name}</div>
-              <div className="dt-recurring-meta">
-                <span>{shortDate(row.dateStr)}</span>
-                {row.time && <span className="dt-time-badge">{row.time}</span>}
-              </div>
-            </div>
-            <label className="dt-preset-toggle">
-              <input type="checkbox" checked={isPreset} onChange={() => onTogglePresetForTask(row)} />
-              {t('manage.presetToggle')}
-            </label>
-            <button className="dt-menu-btn" onClick={() => onToggleRowMenu(menuKey)}><MoreVertical size={16} /></button>
-            {openMenuTaskId === menuKey && (
-              <>
-                <div className="dt-menu-overlay" onClick={onCloseRowMenu} />
-                <div className="dt-menu">
-                  <button className="dt-menu-item" onClick={() => onEditTaskInstance(row)}>{t('common.edit')}</button>
-                  <button className="dt-menu-item danger" onClick={() => onDeleteTaskInstance(row)}>{t('common.delete')}</button>
-                </div>
-              </>
-            )}
+            <button
+              className={`dt-add-today-btn ${onToday ? 'on' : ''}`}
+              disabled={onToday}
+              onClick={() => onAddPresetToToday(p)}
+            >
+              {onToday ? <><Check size={13} strokeWidth={3} /> {t('manage.onToday')}</> : <><Plus size={13} /> {t('manage.addToToday')}</>}
+            </button>
+            <button className="dt-icon-btn" onClick={() => onEditPreset(p)}><Pencil size={15} /></button>
+            <button className="dt-icon-btn" onClick={() => onDeletePreset(p.id)}><Trash2 size={15} /></button>
           </div>
         );
       })}
 
-      {unlistedPresets.map((p) => (
-        <div key={p.id} className="dt-goal-edit-row">
-          <div className="dt-goal-name-text" style={{ cursor: 'default' }}>
-            {p.name}{p.time && <span className="dt-time-badge" style={{ marginLeft: 8 }}>{p.time}</span>}
+      {/* A log of days a thing happened, not a to-do list: no strike-through, because
+          "Laundry, crossed out" reads as finished forever when it is due again next week. */}
+      <div className="dt-section-label">{t('manage.history')}</div>
+      {historyGroups.length === 0 && <div className="dt-empty-manage" style={{ padding: '8px 0' }}>{t('common.noneYet')}</div>}
+      {historyGroups.map((group) => {
+        const notDone = group.rows.filter((row) => !row.completed).length;
+        const single = group.rows.length === 1;
+        const open = single || !!openGroups[group.key];
+
+        const instanceRow = (row) => {
+          const isPreset = !!findMatchingPreset(row);
+          const menuKey = `${row.dateStr}-${row.id}`;
+          return (
+            <div key={menuKey} className={`dt-history-instance ${single ? 'flat' : ''}`} style={{ position: 'relative' }}>
+              <div className={`dt-checkbox ${row.completed ? 'checked' : ''}`} style={{ width: 18, height: 18 }} onClick={() => onToggleTaskComplete(row)}>
+                {row.completed && <Check size={11} color="currentColor" strokeWidth={3} />}
+              </div>
+              {single && <div className="dt-history-instance-name">{row.name}</div>}
+              <span className="dt-history-when">{shortDate(row.dateStr)}</span>
+              {row.time && <span className="dt-time-badge">{row.time}</span>}
+              {!row.completed && <span className="dt-notdone-chip">{t('manage.notDone')}</span>}
+              <button className="dt-menu-btn" style={{ marginLeft: 'auto' }} onClick={() => onToggleRowMenu(menuKey)}><MoreVertical size={16} /></button>
+              {openMenuTaskId === menuKey && (
+                <>
+                  <div className="dt-menu-overlay" onClick={onCloseRowMenu} />
+                  <div className="dt-menu">
+                    <button className="dt-menu-item" onClick={() => onEditTaskInstance(row)}>{t('common.edit')}</button>
+                    <button className="dt-menu-item" onClick={() => { onTogglePresetForTask(row); onCloseRowMenu(); }}>
+                      {t(isPreset ? 'manage.unmakePreset' : 'manage.makePreset')}
+                    </button>
+                    <button className="dt-menu-item danger" onClick={() => onDeleteTaskInstance(row)}>{t('common.delete')}</button>
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        };
+
+        // One instance needs no folding, so it renders as a plain dated row.
+        if (single) return <div key={group.key} className="dt-history-group">{instanceRow(group.rows[0])}</div>;
+
+        return (
+          <div key={group.key} className="dt-history-group">
+            <button className="dt-history-header" onClick={() => toggleGroup(group.key)}>
+              <ChevronDown size={14} style={{ transform: open ? 'none' : 'rotate(-90deg)', flexShrink: 0 }} />
+              <span className="dt-history-name">{group.name}</span>
+              <span className="dt-history-summary">
+                {t('manage.historySummary', { n: group.rows.length, date: shortDate(group.rows[0].dateStr) })}
+                {notDone > 0 && <span className="sep"> · {t('manage.notDoneCount', { n: notDone })}</span>}
+              </span>
+            </button>
+            {open && group.rows.map(instanceRow)}
           </div>
-          <button className="dt-icon-btn" onClick={() => onEditPreset(p)}><Pencil size={15} /></button>
-          <button className="dt-icon-btn" onClick={() => onDeletePreset(p.id)}><Trash2 size={15} /></button>
-        </div>
-      ))}
+        );
+      })}
 
       {achievedDate ? (
         <div className="dt-hint" style={{ margin: '14px 0 0' }}>{t('goal.lockedHint')}</div>

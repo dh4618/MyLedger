@@ -787,8 +787,59 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 .dt-recurring-meta { display: flex; align-items: center; gap: 8px; margin-top: 5px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
 .dt-task-instance-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
 .dt-task-instance-main { flex: 1; min-width: 0; }
-.dt-preset-toggle { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); white-space: nowrap; cursor: pointer; flex-shrink: 0; }
-.dt-preset-toggle input { width: 14px; height: 14px; accent-color: var(--moss); }
+
+/* ---- Goal detail: templates you can add, and the log of what you did ---- */
+/* Named for what they are rather than reusing .dt-preset-row, which is the chip row
+   inside the task modal — two different things under one class is how a selector
+   starts matching something you never meant. */
+.dt-template-row { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.dt-template-row-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.dt-template-row-name { font-size: 14px; font-weight: 500; }
+.dt-add-today-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  font-family: var(--font-ui);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--moss);
+  cursor: pointer;
+}
+.dt-add-today-btn:hover { border-color: var(--moss); }
+/* Already on today: says so and stops taking taps, so a second press can't quietly
+   put a duplicate row on the day. */
+.dt-add-today-btn.on { color: var(--muted); cursor: default; }
+.dt-add-today-btn.on:hover { border-color: var(--line); }
+
+.dt-history-group { border-bottom: 1px solid var(--line); }
+.dt-history-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 11px 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: var(--font-ui);
+  color: var(--ink);
+}
+.dt-history-name { font-size: 14px; font-weight: 500; }
+.dt-history-summary { margin-left: auto; font-size: 11px; color: var(--muted); text-align: right; }
+.dt-history-summary .sep { white-space: nowrap; }
+/* Instances read as a log, not a to-do list: the date leads, and nothing is struck
+   through — a crossed-out "Laundry" says finished, about a thing due again next week. */
+.dt-history-instance { display: flex; align-items: center; gap: 8px; padding: 8px 0 8px 22px; flex-wrap: wrap; }
+.dt-history-instance.flat { padding-left: 0; }
+.dt-history-instance-name { font-size: 14px; font-weight: 500; }
+.dt-history-when { font-size: 12px; color: var(--muted); }
+.dt-notdone-chip { font-size: 11px; color: var(--gold); background: var(--slate-soft); padding: 2px 6px; border-radius: 4px; }
 .dt-empty-manage { font-size: 13px; color: var(--muted); padding: 20px 0; text-align: center; }
 
 /* ---- Groceries ---- */
