@@ -344,6 +344,25 @@ The storage keys and data shapes are identical, so it transfers as-is.
       strike-through made indistinguishable from done.
   - Promoting an ad-hoc task to a preset moved from a per-row checkbox into the
     instance's `⋮` menu — same capability, one less control on every row.
+- **The progress report scores repeats and counts everything else.** A repeat has a
+  schedule, so it has a denominator: *6/8 · 75%*, with one dot per due day so you can see
+  where the misses fell. An on-demand task has no schedule, so it gets a plain count —
+  *Laundry 3×*. Dividing that by an invented target would turn "I did laundry three times"
+  into "you failed at laundry", which is not information.
+  - **The report never re-derives the schedule.** It calls `getTasksForDate` once per day
+    in the range and counts what comes back, so it agrees with what the day page actually
+    showed, by construction. A second implementation of the recurrence rule would drift
+    from the first — silently, and exactly at the month-end clamp and the skip list.
+  - That also decides a judgement call for free: **an occurrence you skipped is not a
+    miss.** `removedRecurring` means "not due that day", so it never reaches `report.js`
+    and the denominator shrinks instead of counting against you.
+  - **Counting stops at today.** Days later this week or month haven't happened, so they
+    are not misses — without that the current month would look wrecked every 1st. A period
+    still running is labelled *so far*.
+  - `src/report.js` is pure — no React, no storage, no Intl — which is why most of its
+    behaviour can be asserted in plain node. `src/dates.js` holds the date arithmetic it
+    and `Ledger.jsx` share; it exists so the report doesn't have to import the god
+    component to ask what day it is.
 - The goal pills row shows only goals with tasks on the day you're viewing, plus whichever
   is currently filtered. Without that, every long-term project would sit in the row forever.
   A past day still shows the pills for goals that had tasks that day, which is what you

@@ -365,8 +365,10 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 /* Two topbar buttons, styled alike but kept as distinct classes — one class for both
    would make "the settings button" ambiguous to anything selecting for it. */
 .dt-settings-btn,
+.dt-report-btn,
 .dt-cart-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px; display: flex; }
 .dt-settings-btn:hover,
+.dt-report-btn:hover,
 .dt-cart-btn:hover { color: var(--ink); }
 .dt-topbar-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 /* The count of things still to buy, so the header answers "is there shopping?" without
@@ -841,6 +843,51 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 .dt-history-when { font-size: 12px; color: var(--muted); }
 .dt-notdone-chip { font-size: 11px; color: var(--gold); background: var(--slate-soft); padding: 2px 6px; border-radius: 4px; }
 .dt-empty-manage { font-size: 13px; color: var(--muted); padding: 20px 0; text-align: center; }
+
+/* ---- Progress report ---- */
+.dt-report-nav { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; }
+.dt-report-period { flex: 1; text-align: center; font-size: 14px; font-weight: 500; font-family: var(--font-display); }
+.dt-report-sofar { display: block; font-size: 11px; font-weight: 400; color: var(--muted); font-family: var(--font-ui); }
+.dt-icon-btn:disabled { opacity: 0.3; cursor: default; }
+
+/* --goal is set per section, so every dot, rule and marker inside picks up that goal's
+   colour without repeating it on each element. */
+.dt-report-section { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); }
+.dt-report-head { display: flex; align-items: center; gap: 8px; }
+.dt-report-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--goal); flex-shrink: 0; }
+.dt-report-goal { font-size: 15px; font-weight: 600; font-family: var(--font-display); }
+.dt-report-score { margin-left: auto; font-family: var(--font-mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.dt-report-kind {
+  margin: 14px 0 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.dt-report-row { padding: 7px 0; }
+.dt-report-row-top { display: flex; align-items: baseline; gap: 10px; }
+.dt-report-name { font-size: 14px; min-width: 0; overflow-wrap: anywhere; }
+.dt-report-count { display: flex; align-items: baseline; gap: 10px; padding: 7px 0; }
+.dt-report-times { margin-left: auto; font-family: var(--font-mono); font-size: 12px; color: var(--ink); white-space: nowrap; }
+/* A template you didn't reach for is an absence, not a failure — so it dims rather
+   than turning red. */
+.dt-report-count.zero { color: var(--muted); }
+.dt-report-count.zero .dt-report-times { color: var(--muted); }
+
+/* One dot per day the task was due, oldest first. Wraps rather than scrolling: a daily
+   task over a long month is 31 dots, which is two rows on a narrow phone. */
+.dt-dots { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.dt-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  box-sizing: border-box;
+  /* Missed: a hollow ring, so hit and miss differ in form and not only in colour. */
+  border: 1.5px solid var(--goal);
+  opacity: 0.4;
+}
+.dt-dot.on { background: var(--goal); opacity: 1; }
 
 /* ---- Groceries ---- */
 .dt-grocery-title { display: inline-flex; align-items: center; gap: 8px; }

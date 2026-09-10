@@ -2,10 +2,11 @@ import { storage, knownUserId } from './storage';
 import { readUnflushed, clearUnflushed } from './pendingWrites';
 import useDurableBlob from './useDurableBlob';
 import GroceryList from './GroceryList';
+import ReportPanel from './ReportPanel';
 import { emptyGroceries, normalizeGroceries, addItem, toggleItem, removeItem, clearBought } from './groceries';
 import { supabase } from './supabase';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays, Sparkles, ChevronDown, Trophy, RotateCcw, ShoppingCart } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays, Sparkles, ChevronDown, Trophy, RotateCcw, ShoppingCart, BarChart3 } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
 import { useLang } from './i18n/LanguageProvider';
 import ProgressBar from './ProgressBar';
@@ -13,6 +14,7 @@ import PasswordSetting from './PasswordSetting';
 import LanguagePicker from './LanguagePicker';
 import { GOAL_ICONS, GoalIcon, hasGoalIcon } from './goalIcons';
 import { genId } from './ids';
+import { toDateStr, fromDateStr, addDays, startOfWeek, daysInMonth, formatHeadline, formatShortDate, formatMonthYear } from './dates';
 
 const GOAL_COLORS = ['#3F5A44', '#3E5C76', '#B8862F', '#9C4430', '#6B5B87', '#3F7A6B'];
 const NO_GOAL_ID = '__no_goal__';
@@ -20,24 +22,6 @@ const NO_GOAL_COLOR = '#8A8577';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // Monday-first, values match JS Date.getDay()
 
-const pad = (n) => String(n).padStart(2, '0');
-const toDateStr = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-const fromDateStr = (s) => {
-  const [y, m, d] = s.split('-').map(Number);
-  return new Date(y, m - 1, d);
-};
-const addDays = (d, n) => {
-  const r = new Date(d);
-  r.setDate(r.getDate() + n);
-  return r;
-};
-const startOfWeek = (d) => {
-  const date = new Date(d);
-  const day = date.getDay();
-  const diff = day === 0 ? -6 : 1 - day;
-  date.setDate(date.getDate() + diff);
-  return date;
-};
 const defaultDay = () => ({ oneOff: [], completed: {}, removedRecurring: [] });
 
 // Two tasks are "the same activity" if their names match once trimmed and case-folded.
@@ -50,58 +34,6 @@ const MONTH_DAYS = Array.from({ length: 31 }, (_, i) => i + 1);
 // migration — they keep matching on `days` exactly as they did.
 const isMonthly = (r) => !!r && r.freq === 'monthly';
 const monthDaysOf = (r) => (r && r.monthDays && r.monthDays.length ? r.monthDays : [1]);
-// Day 0 of the next month is the last day of this one.
-const daysInMonth = (dateStr) => new Date(Number(dateStr.slice(0, 4)), Number(dateStr.slice(5, 7)), 0).getDate();
-
-// Dates come from Intl rather than hand-written month and weekday arrays, so a new
-// language needs no date work at all. Formatters are cached per locale because
-// constructing one is comparatively expensive and these run on every render of the
-// week strip and the calendar grid.
-const formatterCache = new Map();
-const formatter = (locale, options) => {
-  const key = `${locale}|${JSON.stringify(options)}`;
-  let f = formatterCache.get(key);
-  if (!f) {
-    f = new Intl.DateTimeFormat(locale, options);
-    formatterCache.set(key, f);
-  }
-  return f;
-};
-
-// "Thursday, 30 July" / "7月30日 星期四" — en-GB puts the day first, which is what
-// this app has always shown, and zh-CN produces its own natural order.
-//
-// Built from parts rather than format() because Intl's punctuation needs adjusting
-// at both ends: en-GB renders a bare space after the weekday where this headline has
-// always had a comma, and zh-CN butts the weekday straight onto the date with no gap
-// at all ("7月30日星期四"), which reads cramped.
-//
-// The test for "needs a gap" is whether the text so far ends in whitespace — not
-// whether Intl emitted a literal. In zh-CN the 日 *is* a literal, but it's content
-// rather than a separator, so keying off the part type gets this exactly backwards.
-const formatHeadline = (date, locale) => {
-  const parts = formatter(locale, { weekday: 'long', day: 'numeric', month: 'long' }).formatToParts(date);
-  const endsOpen = (s) => s.length > 0 && !/\s$/.test(s);
-  let out = '';
-  parts.forEach((part, i) => {
-    const prev = parts[i - 1];
-    if (part.type === 'literal' && part.value === ' ' && prev && prev.type === 'weekday') {
-      out += ', ';
-      return;
-    }
-    // Separate the weekday from whatever it abuts, in either order.
-    const abutsWeekday = part.type === 'weekday' || (prev && prev.type === 'weekday');
-    if (abutsWeekday && endsOpen(out)) out += ' ';
-    out += part.value;
-  });
-  return out;
-};
-// "Jul 30" / "7月30日"
-const formatShortDate = (date, locale) =>
-  formatter(locale, { day: 'numeric', month: 'short' }).format(date);
-// "July 2026" / "2026年7月"
-const formatMonthYear = (date, locale) =>
-  formatter(locale, { year: 'numeric', month: 'long' }).format(date);
 
 // Takes t and the localised abbreviations so the summary reads naturally in both
 // languages — including the separator, which is 、rather than a comma in Chinese.
@@ -174,6 +106,7 @@ export default function Ledger() {
   const [importStatus, setImportStatus] = useState('');
   const [groceries, setGroceries] = useState(emptyGroceries());
   const [showGroceries, setShowGroceries] = useState(false);
+  const [showReport, setShowReport] = useState(false);
   const writesLocked = useRef(false);
 
   const todayStr = toDateStr(new Date());
@@ -898,6 +831,9 @@ export default function Ledger() {
             <div className="dt-topbar-actions">
               {/* The badge is the whole point of putting this in the header rather than
                   inside Manage: you can see there's shopping to do without opening it. */}
+              <button className="dt-report-btn" title={t('report.title')} onClick={() => setShowReport(true)}>
+                <BarChart3 size={20} />
+              </button>
               <button className="dt-cart-btn" title={t('grocery.title')} onClick={() => setShowGroceries(true)}>
                 <ShoppingCart size={20} />
                 {outstandingGroceries > 0 && <span className="dt-cart-badge">{outstandingGroceries}</span>}
@@ -1345,6 +1281,21 @@ export default function Ledger() {
             </div>
           </div>
         </div>
+      )}
+
+      {showReport && (
+        <ReportPanel
+          /* getTasksForDate is the single source of "was this task live that day" —
+             see report.js for why the report asks it rather than re-deriving schedules. */
+          getTasks={getTasksForDate}
+          isDone={(dateStr, taskId) => !!(days[dateStr] || defaultDay()).completed[taskId]}
+          goals={goals}
+          presets={presets}
+          todayStr={todayStr}
+          locale={locale}
+          noGoalColor={NO_GOAL_COLOR}
+          onClose={() => setShowReport(false)}
+        />
       )}
 
       {showGroceries && (
