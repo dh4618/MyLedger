@@ -323,6 +323,27 @@ The storage keys and data shapes are identical, so it transfers as-is.
     can't silently lose it.
   - Unticking a task under an achieved goal reopens the goal, behind a confirm naming the
     goal and its date — the record is never lost silently.
+- **A preset is a template, and a goal's history is a log — the goal screen keeps them
+  apart.** Laundry has no schedule: you add it on whichever day you feel like doing it,
+  and each time it lands on a day it is an ordinary one-off. That makes two sections:
+  - **Ready to add** lists *every* preset for the goal, each with a one-tap `+ Today`
+    that writes a one-off onto today carrying the preset's time, goal and carry-over
+    flag. It reads *On today* and stops taking taps once an instance is already there,
+    matched on name alone — re-adding under a different time still counts as already
+    there, which is the safer way to be wrong.
+    - This section used to filter out any preset a day row matched, so a preset
+      **disappeared exactly as you started using it** — the template you reach for most
+      often was the one thing the screen hid. A preset is a template; using it is not a
+      reason to hide it.
+  - **History** groups past instances by name, trimmed and case-folded (not name+time:
+    laundry at 09:00 and laundry with no time are the same activity, and the hour still
+    shows on each instance). A group with one instance renders flat, with no chevron.
+    - **Nothing is struck through here.** A crossed-out "Laundry" says finished, about a
+      thing due again next week. Done reads as a muted tick against the date; an instance
+      never completed gets a *not done* chip, which is real information the old
+      strike-through made indistinguishable from done.
+  - Promoting an ad-hoc task to a preset moved from a per-row checkbox into the
+    instance's `⋮` menu — same capability, one less control on every row.
 - The goal pills row shows only goals with tasks on the day you're viewing, plus whichever
   is currently filtered. Without that, every long-term project would sit in the row forever.
   A past day still shows the pills for goals that had tasks that day, which is what you
