@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { X, ChevronLeft, ChevronRight, Flame } from 'lucide-react';
 import { useLang } from './i18n/LanguageProvider';
 import { toDateStr, fromDateStr, addDays, startOfWeek, dateRange, formatShortDate, formatMonthYear } from './dates';
 import { buildReport, pct } from './report';
@@ -13,7 +13,7 @@ import { buildReport, pct } from './report';
 // so it has a denominator and can be scored. Laundry has none: "3 times this month" is
 // the whole truth about it, and dividing that by an invented target would turn "I did
 // laundry three times" into "you failed at laundry".
-export default function ReportPanel({ getTasks, isDone, goals, presets, todayStr, locale, noGoalColor, onClose }) {
+export default function ReportPanel({ getTasks, isDone, goals, presets, todayStr, locale, noGoalColor, streak, onClose }) {
   const { t } = useLang();
   const [mode, setMode] = useState('week');
   // 0 is the period containing today; negative steps back. There is no positive: a
@@ -120,6 +120,26 @@ export default function ReportPanel({ getTasks, isDone, goals, presets, todayStr
         <div className="dt-modal-title">
           {t('report.title')}
           <button className="dt-icon-btn" onClick={onClose}><X size={20} /></button>
+        </div>
+
+        {/* Above the period switch because it belongs to no period — the streak is a
+            running fact about today, not a figure for the week you happen to be viewing. */}
+        <div className={`dt-streak-card ${streak.current > 0 ? '' : 'none'}`}>
+          <Flame size={20} />
+          <div className="dt-streak-main">
+            <div className="dt-streak-count">
+              {streak.current > 0 ? t('streak.days', { n: streak.current }) : t('streak.none')}
+            </div>
+            <div className="dt-streak-sub">
+              {streak.current === 0 ? t('streak.startToday')
+                : !streak.includesToday ? t('streak.keepGoing')
+                : t('streak.best', { n: streak.longest })}
+            </div>
+          </div>
+          {/* The best run only earns its space once it is actually better than now. */}
+          {streak.current > 0 && !streak.includesToday && streak.longest > streak.current && (
+            <div className="dt-streak-best">{t('streak.best', { n: streak.longest })}</div>
+          )}
         </div>
 
         <div className="dt-segmented">
