@@ -3,9 +3,6 @@ import { readUnflushed, clearUnflushed } from './pendingWrites';
 import useDurableBlob from './useDurableBlob';
 import GroceryList from './GroceryList';
 import { emptyGroceries, normalizeGroceries, addItem, toggleItem, removeItem, clearBought } from './groceries';
-import CapturePanel from './CapturePanel';
-import { requestParse } from './capture';
-import { guardProposal } from './parseGuard';
 import { supabase } from './supabase';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays, Sparkles, ChevronDown, Trophy, RotateCcw, ShoppingCart } from 'lucide-react';
@@ -142,7 +139,7 @@ const summarizeRepeat = (r, t, weekdayAbbr, locale) => {
 
 export default function Ledger() {
   const { theme, themeId, setThemeId, themes } = useTheme();
-  const { t, locale, langId, weekdayLetters, weekdayAbbr } = useLang();
+  const { t, locale, weekdayLetters, weekdayAbbr } = useLang();
   const [loading, setLoading] = useState(true);
   const [goals, setGoals] = useState([]);
   const [recurring, setRecurring] = useState([]);
@@ -172,7 +169,6 @@ export default function Ledger() {
   const [importStatus, setImportStatus] = useState('');
   const [groceries, setGroceries] = useState(emptyGroceries());
   const [showGroceries, setShowGroceries] = useState(false);
-  const [showCapture, setShowCapture] = useState(false);
   const writesLocked = useRef(false);
 
   const todayStr = toDateStr(new Date());
@@ -316,16 +312,11 @@ export default function Ledger() {
   const daysBlob = useDurableBlob({ storageKey: 'all-days', label: 'error.label.days', persist, locked: writesLocked });
   const groceryBlob = useDurableBlob({ storageKey: 'groceries', label: 'error.label.groceries', persist, locked: writesLocked });
 
-  // One write covering however many days changed. Confirming a capture can add tasks to
-  // two days and tick something off on a third, and calling saveDay per day would rebuild
-  // each update from `days` state that hasn't re-rendered yet — so all but the last would
-  // be lost.
-  const saveDays = (updates) => {
-    const updated = { ...daysBlob.peek(), ...updates };
+  const saveDay = (dateStr, next) => {
+    const updated = { ...daysBlob.peek(), [dateStr]: next };
     setDays(updated);
     daysBlob.save(updated);
   };
-  const saveDay = (dateStr, next) => saveDays({ [dateStr]: next });
   const saveGroceries = (next) => {
     setGroceries(next);
     groceryBlob.save(next);
@@ -341,95 +332,6 @@ export default function Ledger() {
     return result.id;
   };
   const outstandingGroceries = groceries.items.filter((x) => !x.bought).length;
-
-  // ---- Natural-language capture ----
-
-  // What the model is allowed to know: today, and the ids it may refer to. It never sees
-  // the ledger itself, and `guardProposal` re-checks every id it hands back against this
-  // same data — so an id can only survive if it started here.
-  const captureContext = () => {
-    const openTasks = [];
-    // A week back plus today: "I did the washing up" is about something recent, and a
-    // longer window is just more candidates to mismatch against.
-    for (let back = 7; back >= 0; back -= 1) {
-      const ds = toDateStr(addDays(fromDateStr(todayStr), -back));
-      const dayCompleted = getDay(ds).completed;
-      // getTasksForDate, so a carried task is offered on the day it is actually shown.
-      getTasksForDate(ds).forEach((task) => {
-        if (!dayCompleted[task.id]) openTasks.push({ id: task.id, dateStr: ds, name: task.name });
-      });
-    }
-    return {
-      today: todayStr,
-      weekday: formatter(locale, { weekday: 'long' }).format(fromDateStr(todayStr)),
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      lang: langId,
-      goals: goals.filter((g) => !goalAchieved(g)).map((g) => ({ id: g.id, name: g.name })),
-      presets: presets.map((p) => ({
-        id: p.id, name: p.name, time: p.time || null, goalId: p.goalId || null, carryOver: !!p.carryOver,
-      })),
-      recurring: recurring.map((r) => ({ id: r.id, name: r.name })),
-      openTasks,
-      groceryRecent: groceries.recent,
-    };
-  };
-
-  const parseAndGuard = async (text) => {
-    const context = captureContext();
-    const raw = await requestParse(text, context);
-    const guarded = guardProposal(raw, { todayStr, ...context });
-    return {
-      ...guarded,
-      // Resolved here rather than in the guard: the guard's job is to decide whether an
-      // id is real, and the panel just needs something to print.
-      tasks: guarded.tasks.map((t) => ({ ...t, goalName: (goalById(t.goalId) || {}).name || null })),
-    };
-  };
-
-  const applyProposal = (approved) => {
-    // Group by day first so several additions and tick-offs on one date become one write.
-    const dayEdits = {};
-    const editDay = (ds) => {
-      if (!dayEdits[ds]) {
-        const base = daysBlob.peek()[ds] || defaultDay();
-        dayEdits[ds] = { ...base, oneOff: [...base.oneOff], completed: { ...base.completed } };
-      }
-      return dayEdits[ds];
-    };
-
-    approved.tasks.filter((t) => !t.repeat).forEach((t) => {
-      editDay(t.date).oneOff.push({
-        id: genId(), name: t.name, time: t.time, goalId: t.goalId, carryOver: t.carryOver,
-      });
-    });
-    approved.completions.forEach((c) => { editDay(c.dateStr).completed[c.taskId] = true; });
-    if (Object.keys(dayEdits).length) saveDays(dayEdits);
-
-    const repeats = approved.tasks.filter((t) => t.repeat);
-    if (repeats.length) {
-      saveRecurring([...recurring, ...repeats.map((t) => ({
-        id: genId(),
-        name: t.name,
-        time: t.time,
-        goalId: t.goalId,
-        freq: t.repeat.freq,
-        days: t.repeat.freq === 'weekly' ? t.repeat.days : [...ALL_DAYS],
-        monthDays: t.repeat.freq === 'monthly' ? t.repeat.monthDays : [],
-        createdDate: todayStr,
-        endDate: null,
-      }))]);
-    }
-
-    if (approved.groceries.length) {
-      // Through addItem, so the same de-duplication applies as when typing them by hand.
-      let list = groceries;
-      approved.groceries.forEach((name) => {
-        const result = addItem(list, name);
-        if (result) list = result.next;
-      });
-      if (list !== groceries) saveGroceries(list);
-    }
-  };
 
   const getDay = (dateStr) => days[dateStr] || defaultDay();
 
@@ -974,9 +876,6 @@ export default function Ledger() {
               </div>
             </div>
             <div className="dt-topbar-actions">
-              <button className="dt-capture-btn" title={t('capture.title')} onClick={() => setShowCapture(true)}>
-                <Sparkles size={20} />
-              </button>
               {/* The badge is the whole point of putting this in the header rather than
                   inside Manage: you can see there's shopping to do without opening it. */}
               <button className="dt-cart-btn" title={t('grocery.title')} onClick={() => setShowGroceries(true)}>
@@ -1426,15 +1325,6 @@ export default function Ledger() {
             </div>
           </div>
         </div>
-      )}
-
-      {showCapture && (
-        <CapturePanel
-          onParse={parseAndGuard}
-          onApply={applyProposal}
-          onClose={() => setShowCapture(false)}
-          formatDate={(ds) => formatShortDate(fromDateStr(ds), locale)}
-        />
       )}
 
       {showGroceries && (
