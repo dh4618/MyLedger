@@ -1,0 +1,1137 @@
+{
+  "id": "exeter-2026-11-05",
+  "course": "Exeter",
+  "date": "2026-11-05",
+  "country": "GB",
+  "surface": "Turf",
+  "going": "Soft",
+  "goingDetail": "Soft, Heavy in places",
+  "source": {
+    "kind": "fictional-sample",
+    "note": "Invented runners, trainers and jockeys at a real course, for development only."
+  },
+  "races": [
+    {
+      "id": "exeter-2026-11-05-1350",
+      "offTime": "13:50",
+      "name": "Sample Novices' Hurdle",
+      "raceType": "Hurdle",
+      "raceClass": 4,
+      "isHandicap": false,
+      "distanceYards": 3740,
+      "ageRestriction": "4yo+",
+      "prizeGbp": 5200,
+      "runners": [
+        {
+          "id": "exeter-2026-11-05-1350-1",
+          "number": 1,
+          "name": "Bramble Court",
+          "age": 5,
+          "sex": "g",
+          "weightLbs": 156,
+          "trainer": {
+            "name": "G. Treharne",
+            "recent": {
+              "runs": 25,
+              "wins": 6,
+              "days": 14
+            },
+            "course": {
+              "runs": 40,
+              "wins": 9
+            }
+          },
+          "jockey": {
+            "name": "B. Lacey",
+            "recent": {
+              "runs": 30,
+              "wins": 7,
+              "days": 14
+            }
+          },
+          "form": [
+            {
+              "date": "2026-10-15",
+              "course": "Chepstow",
+              "raceType": "Hurdle",
+              "surface": "Turf",
+              "distanceYards": 3520,
+              "going": "Good to Soft",
+              "raceClass": 4,
+              "position": 2,
+              "ran": 9,
+              "beatenLengths": 1.5,
+              "comment": "Jumped well, kept on after the last"
+            },
+            {
+              "date": "2026-04-10",
+              "course": "Fontwell",
+              "raceType": "NH Flat",
+              "surface": "Turf",
+              "distanceYards": 3520,
+              "going": "Good",
+              "raceClass": 5,
+              "position": 1,
+              "ran": 12,
+              "wonByLengths": 4
+            },
+            {
+              "date": "2026-03-01",
+              "course": "Ludlow",
+              "raceType": "NH Flat",
+              "surface": "Turf",
+              "distanceYards": 3520,
+              "going": "Good",
+              "raceClass": 5,
+              "position": 3,
+              "ran": 10,
+              "beatenLengths": 2
+            }
+          ],
+          "silks": [
+            "#7a1f2b",
+            "#d9c27e"
+          ],
+          "speedRating": 112,
+          "odds": {
+            "current": "7/4"
+          }
+        },
+        {
+          "id": "exeter-2026-11-05-1350-2",
+          "number": 2,
+          "name": "Wychwood Star",
+          "age": 6,
+          "sex": "g",
+          "weightLbs": 162,
+          "trainer": {
+            "name": "H. Penrose",
+            "recent": {
+              "runs": 16,
+              "wins": 2,
+              "days": 14
+            },
+            "course": {
+              "runs": 22,
+              "wins": 3
+            }
+          },
+          "jockey": {
+            "name": "A. Quinlan",
+            "recent": {
+              "runs": 21,
+              "wins": 3,
+              "days": 14
+            }
+          },
+          "form": [
+            {
+              "date": "2026-10-28",
+              "course": "Exeter",
+              "raceType": "Hurdle",
+              "surface": "Turf",
+              "distanceYards": 3740,
+              "going": "Soft",
+              "raceClass": 4,
+              "position": 1,
+              "ran": 10,
+              "wonByLengths": 6,
+              "comment": "Led three out, stayed on strongly"
+            },
+            {
+              "date": "2026-02-14",
+              "course": "Exeter",
+              "raceType": "NH Flat",
+              "surface": "Turf",
+              "distanceYards": 3520,
+              "going": "Heavy",
+              "raceClass": 5,
+              "position": 1,
+              "ran": 9,
+              "wonByLengths": 2.5
+            },
+            {
+              "date": "2025-12-20",
+              "course": "Chepstow",
+              "raceType": "NH Flat",
+              "surface": "Turf",
+              "distanceYards": 3520,
+              "going": "Soft",
+              "raceClass": 5,
+              "position": 4,
+              "ran": 11,
+              "beatenLengths": 7
+            }
+          ],
+          "silks": [
+            "#2e4a7d",
+            "#e3e3e3"
+          ],
+          "speedRating": 115,
+          "odds": {
+            "current": "5/2",
+            "opening": "7/2"
+          }
+        },
+        {
+          "id": "exeter-2026-11-05-1350-3",
+          "number": 3,
+          "name": "Red Fern Lane",
+          "age": 4,
+          "sex": "g",
+          "weightLbs": 156,
+          "trainer": {
+            "name": "S. Ellery",
+            "recent": {
+              "runs": 12,
+              "wins": 0,
+              "days": 14
+            }
+          },
+          "jockey": {
+            "name": "J. Kerr",
+            "recent": {
+              "runs": 13,
+              "wins": 1,
+              "days": 14
+            }
+          },
+          "form": [
+            {
+              "date": "2026-09-10",
+              "course": "Doncaster",
+              "raceType": "Flat",
+              "surface": "Turf",
+              "distanceYards": 2640,
+              "going": "Good to Firm",
+              "raceClass": 3,
+              "position": 2,
+              "ran": 8,
+              "beatenLengths": 0.5,
+              "officialRating": 84,
+              "isHandicap": true
+            },
+            {
+              "date": "2026-08-15",
+              "course": "Newbury",
+              "raceType": "Flat",
+              "surface": "Turf",
+              "distanceYards": 2640,
+              "going": "Good",
+              "raceClass": 3,
+              "position": 1,
+              "ran": 10,
+              "wonByLengths": 1,
+              "officialRating": 80,
+              "isHandicap": true
+            },
+            {
+              "date": "2026-07-20",
+              "course": "Ascot",
+              "raceType": "Flat",
+              "surface": "Turf",
+              "distanceYards": 2200,
+              "going": "Good to Firm",
+              "raceClass": 3,
+              "position": 3,
+              "ran": 9,
+              "beatenLengths": 1.25,
+              "officialRating": 80,
+              "isHandicap": true
+            }
+          ],
+          "silks": [
+            "#a83232",
+            "#2f4f2f"
+          ],
+          "odds": {
+            "current": "4/1"
+          }
+        },
+        {
+          "id": "exeter-2026-11-05-1350-4",
+          "number": 4,
+          "name": "Cairn Dancer",
+          "age": 5,
+          "sex": "m",
+          "weightLbs": 149,
+          "trainer": {
+            "name": "G. Treharne",
+            "recent": {
+              "runs": 25,
+              "wins": 6,
+              "days": 14
+            },
+            "course": {
+              "runs": 40,
+              "wins": 9
+            }
+          },
+          "jockey": {
+            "name": "R. Morgan",
+            "recent": {
+              "runs": 17,
+              "wins": 2,
+              "days": 14
+            }
+          },
+          "form": [
+            {
+              "date": "2026-10-08",
+              "course": "Wincanton",
+              "raceType": "Hurdle",
+              "surface": "Turf",
+              "distanceYards": 3520,
+              "going": "Good",
+              "raceClass": 4,
+              "position": 4,
+              "ran": 11,
+              "beatenLengths": 6
+            },
+            {
+              "date": "2026-05-01",
+              "course": "Exeter",
+              "raceType": "Hurdle",
+              "surface": "Turf",
+              "distanceYards": 3740,
+              "going": "Good to Firm",
+              "raceClass": 4,
+              "position": 6,
+              "ran": 9,
+              "beatenLengths": 12
+            },
+            {
+              "date": "2026-04-05",
+              "course": "Taunton",
+              "raceType": "Hurdle",
+              "surface": "Turf",
+              "distanceYards": 3520,
+              "going": "Good",
+              "raceClass": 4,
+              "position": 3,
+              "ran": 12,
+              "beatenLengths": 3.5
+            }
+          ],
+          "silks": [
+            "#7a1f2b",
+            "#d9c27e"
+          ],
+          "speedRating": 104,
+          "odds": {
+            "current": "12/1"
+          }
+        },
+        {
+          "id": "exeter-2026-11-05-1350-5",
+          "number": 5,
+          "name": "Mossbank",
+          "age": 6,
+          "sex": "g",
+          "weightLbs": 156,
+          "trainer": {
+            "name": "H. Penrose",
+            "recent": {
+              "runs": 16,
+              "wins": 2,
+              "days": 14
+            },
+            "course": {
+              "runs": 22,
+              "wins": 3
+            }
+          },
+          "jockey": {
+            "name": "T. Hale",
+            "recent": {
+              "runs": 12,
+              "wins": 0,
+              "days": 14
+            }
+          },
+          "form": [
+            {
+              "date": "2026-10-20",
+              "course": "Ffos Las",
+              "raceType": "Hurdle",
+              "surface": "Turf",
+              "distanceYards": 4400,
+              "going": "Heavy",
+              "raceClass": 4,
+              "position": 5,
+              "ran": 8,
+              "beatenLengths": 22
+            },
+            {
+              "date": "2026-09-30",
+              "course": "Exeter",
+              "raceType": "Hurdle",
+              "surface": "Turf",
+              "distanceYards": 4180,
+              "going": "Soft",
+              "raceClass": 4,
+              "position": "PU",
+              "ran": 9,
+              "comment": "Weakened quickly four out, pulled up"
+            },
+            {
+              "date": "2026-04-12",
+              "course": "Chepstow",
+              "raceType": "Hurdle",
+              "surface": "Turf",
+              "distanceYards": 3520,
+              "going": "Soft",
+              "raceClass": 4,
+              "position": 6,
+              "ran": 10,
+              "beatenLengths": 18
+            }
+          ],
+          "silks": [
+            "#2e4a7d",
+            "#e3e3e3"
+          ],
+          "speedRating": 95,
+          "odds": {
+            "current": "22/1"
+          }
+        },
+        {
+          "id": "exeter-2026-11-05-1350-6",
+          "number": 6,
+          "name": "Lynher Lad",
+          "age": 5,
+          "sex": "g",
+          "weightLbs": 156,
+          "trainer": {
+            "name": "D. Coyle",
+            "recent": {
+              "runs": 8,
+              "wins": 1,
+              "days": 14
+            }
+          },
+          "jockey": {
+            "name": "M. Ennis",
+            "recent": {
+              "runs": 9,
+              "wins": 1,
+              "days": 14
+            }
+          },
+          "form": [
+            {
+              "date": "2026-10-01",
+              "course": "Newton Abbot",
+              "raceType": "Hurdle",
+              "surface": "Turf",
+              "distanceYards": 3740,
+              "going": "Good",
+              "raceClass": 4,
+              "position": 3,
+              "ran": 12,
+              "beatenLengths": 4
+            },
+            {
+              "date": "2026-09-09",
+              "course": "Uttoxeter",
+              "raceType": "Hurdle",
+              "surface": "Turf",
+              "distanceYards": 3520,
+              "going": "Good to Soft",
+              "raceClass": 4,
+              "position": 5,
+              "ran": 14,
+              "beatenLengths": 9
+            }
+          ],
+          "silks": [
+            "#ffcc00",
+            "#003366"
+          ],
+          "speedRating": 106,
+          "headgear": {
+            "code": "h",
+            "firstTime": true
+          },
+          "odds": {
+            "current": "9/1"
+          }
+        },
+        {
+          "id": "exeter-2026-11-05-1350-7",
+          "number": 7,
+          "name": "Ashgrove Belle",
+          "age": 4,
+          "sex": "f",
+          "weightLbs": 149,
+          "trainer": {
+            "name": "S. Ellery",
+            "recent": {
+              "runs": 12,
+              "wins": 0,
+              "days": 14
+            }
+          },
+          "jockey": {
+            "name": "P. Nolan",
+            "recent": {
+              "runs": 7,
+              "wins": 0,
+              "days": 14
+            }
+          },
+          "form": [],
+          "silks": [
+            "#a83232",
+            "#2f4f2f"
+          ],
+          "odds": {
+            "current": "33/1"
+          }
+        }
+      ]
+    },
+    {
+      "id": "exeter-2026-11-05-1500",
+      "offTime": "15:00",
+      "name": "Sample Handicap Chase",
+      "raceType": "Chase",
+      "raceClass": 3,
+      "isHandicap": true,
+      "distanceYards": 5060,
+      "ageRestriction": "5yo+",
+      "prizeGbp": 12500,
+      "runners": [
+        {
+          "id": "exeter-2026-11-05-1500-1",
+          "number": 1,
+          "name": "Gallant Oak",
+          "age": 9,
+          "sex": "g",
+          "weightLbs": 166,
+          "trainer": {
+            "name": "G. Treharne",
+            "recent": {
+              "runs": 25,
+              "wins": 6,
+              "days": 14
+            },
+            "course": {
+              "runs": 40,
+              "wins": 9
+            }
+          },
+          "jockey": {
+            "name": "B. Lacey",
+            "recent": {
+              "runs": 30,
+              "wins": 7,
+              "days": 14
+            }
+          },
+          "form": [
+            {
+              "date": "2026-10-24",
+              "course": "Chepstow",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5280,
+              "going": "Soft",
+              "raceClass": 3,
+              "position": 1,
+              "ran": 9,
+              "wonByLengths": 3.5,
+              "officialRating": 125,
+              "isHandicap": true,
+              "comment": "Jumped boldly, drew clear from two out"
+            },
+            {
+              "date": "2026-04-20",
+              "course": "Exeter",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5280,
+              "going": "Good",
+              "raceClass": 3,
+              "position": 2,
+              "ran": 8,
+              "beatenLengths": 2,
+              "officialRating": 124,
+              "isHandicap": true
+            },
+            {
+              "date": "2026-03-15",
+              "course": "Exeter",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5060,
+              "going": "Soft",
+              "raceClass": 4,
+              "position": 1,
+              "ran": 10,
+              "wonByLengths": 5,
+              "officialRating": 118,
+              "isHandicap": true
+            }
+          ],
+          "silks": [
+            "#7a1f2b",
+            "#d9c27e"
+          ],
+          "officialRating": 132,
+          "speedRating": 128,
+          "odds": {
+            "current": "3/1"
+          }
+        },
+        {
+          "id": "exeter-2026-11-05-1500-2",
+          "number": 2,
+          "name": "Moorland Spirit",
+          "age": 8,
+          "sex": "g",
+          "weightLbs": 163,
+          "trainer": {
+            "name": "H. Penrose",
+            "recent": {
+              "runs": 16,
+              "wins": 2,
+              "days": 14
+            },
+            "course": {
+              "runs": 22,
+              "wins": 3
+            }
+          },
+          "jockey": {
+            "name": "A. Quinlan",
+            "recent": {
+              "runs": 21,
+              "wins": 3,
+              "days": 14
+            }
+          },
+          "form": [
+            {
+              "date": "2026-10-10",
+              "course": "Exeter",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5060,
+              "going": "Good to Soft",
+              "raceClass": 3,
+              "position": 3,
+              "ran": 7,
+              "beatenLengths": 4,
+              "officialRating": 130,
+              "isHandicap": true
+            },
+            {
+              "date": "2026-02-20",
+              "course": "Wincanton",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5280,
+              "going": "Heavy",
+              "raceClass": 3,
+              "position": 1,
+              "ran": 8,
+              "wonByLengths": 2,
+              "officialRating": 126,
+              "isHandicap": true
+            },
+            {
+              "date": "2026-01-15",
+              "course": "Exeter",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5280,
+              "going": "Heavy",
+              "raceClass": 4,
+              "position": 1,
+              "ran": 9,
+              "wonByLengths": 8,
+              "officialRating": 120,
+              "isHandicap": true
+            }
+          ],
+          "silks": [
+            "#2e4a7d",
+            "#e3e3e3"
+          ],
+          "officialRating": 129,
+          "speedRating": 131,
+          "odds": {
+            "current": "7/2"
+          }
+        },
+        {
+          "id": "exeter-2026-11-05-1500-3",
+          "number": 3,
+          "name": "Harbour Mist",
+          "age": 10,
+          "sex": "g",
+          "weightLbs": 161,
+          "trainer": {
+            "name": "D. Coyle",
+            "recent": {
+              "runs": 8,
+              "wins": 1,
+              "days": 14
+            }
+          },
+          "jockey": {
+            "name": "M. Ennis",
+            "recent": {
+              "runs": 9,
+              "wins": 1,
+              "days": 14
+            }
+          },
+          "form": [
+            {
+              "date": "2026-04-01",
+              "course": "Cheltenham",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5500,
+              "going": "Good",
+              "raceClass": 2,
+              "position": 5,
+              "ran": 12,
+              "beatenLengths": 11,
+              "officialRating": 130,
+              "isHandicap": true
+            },
+            {
+              "date": "2026-03-01",
+              "course": "Kempton",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5280,
+              "going": "Good to Soft",
+              "raceClass": 2,
+              "position": 4,
+              "ran": 10,
+              "beatenLengths": 6,
+              "officialRating": 131,
+              "isHandicap": true
+            },
+            {
+              "date": "2025-12-26",
+              "course": "Kempton",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5280,
+              "going": "Good",
+              "raceClass": 2,
+              "position": 2,
+              "ran": 9,
+              "beatenLengths": 1,
+              "officialRating": 131,
+              "isHandicap": true
+            }
+          ],
+          "silks": [
+            "#ffcc00",
+            "#003366"
+          ],
+          "officialRating": 127,
+          "speedRating": 124,
+          "headgear": {
+            "code": "v",
+            "firstTime": true
+          },
+          "odds": {
+            "current": "8/1",
+            "opening": "6/1"
+          }
+        },
+        {
+          "id": "exeter-2026-11-05-1500-4",
+          "number": 4,
+          "name": "Tamar Crossing",
+          "age": 7,
+          "sex": "g",
+          "weightLbs": 159,
+          "trainer": {
+            "name": "S. Ellery",
+            "recent": {
+              "runs": 12,
+              "wins": 0,
+              "days": 14
+            }
+          },
+          "jockey": {
+            "name": "J. Kerr",
+            "recent": {
+              "runs": 13,
+              "wins": 1,
+              "days": 14
+            }
+          },
+          "form": [
+            {
+              "date": "2026-09-25",
+              "course": "Newton Abbot",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 4620,
+              "going": "Good",
+              "raceClass": 4,
+              "position": 1,
+              "ran": 7,
+              "wonByLengths": 2.5,
+              "officialRating": 118,
+              "isHandicap": true,
+              "trainer": "F. Lockyer"
+            },
+            {
+              "date": "2026-09-05",
+              "course": "Newton Abbot",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 4620,
+              "going": "Good",
+              "raceClass": 4,
+              "position": 2,
+              "ran": 8,
+              "beatenLengths": 1,
+              "officialRating": 118,
+              "isHandicap": true,
+              "trainer": "F. Lockyer"
+            },
+            {
+              "date": "2026-05-01",
+              "course": "Exeter",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 4180,
+              "going": "Good to Firm",
+              "raceClass": 4,
+              "position": 3,
+              "ran": 9,
+              "beatenLengths": 3,
+              "officialRating": 116,
+              "isHandicap": true,
+              "trainer": "F. Lockyer"
+            }
+          ],
+          "silks": [
+            "#a83232",
+            "#2f4f2f"
+          ],
+          "officialRating": 125,
+          "speedRating": 122,
+          "odds": {
+            "current": "6/1"
+          }
+        },
+        {
+          "id": "exeter-2026-11-05-1500-5",
+          "number": 5,
+          "name": "Blackdown Rebel",
+          "age": 9,
+          "sex": "g",
+          "weightLbs": 157,
+          "trainer": {
+            "name": "G. Treharne",
+            "recent": {
+              "runs": 25,
+              "wins": 6,
+              "days": 14
+            },
+            "course": {
+              "runs": 40,
+              "wins": 9
+            }
+          },
+          "jockey": {
+            "name": "R. Morgan",
+            "recent": {
+              "runs": 17,
+              "wins": 2,
+              "days": 14
+            }
+          },
+          "form": [
+            {
+              "date": "2026-10-30",
+              "course": "Exeter",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5060,
+              "going": "Soft",
+              "raceClass": 3,
+              "position": "F",
+              "ran": 10,
+              "comment": "Travelling well in second when fell four out"
+            },
+            {
+              "date": "2026-10-05",
+              "course": "Chepstow",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5060,
+              "going": "Soft",
+              "raceClass": 3,
+              "position": 2,
+              "ran": 9,
+              "beatenLengths": 1.25,
+              "officialRating": 123,
+              "isHandicap": true
+            },
+            {
+              "date": "2026-03-10",
+              "course": "Exeter",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5280,
+              "going": "Heavy",
+              "raceClass": 4,
+              "position": 1,
+              "ran": 8,
+              "wonByLengths": 4,
+              "officialRating": 117,
+              "isHandicap": true
+            }
+          ],
+          "silks": [
+            "#7a1f2b",
+            "#d9c27e"
+          ],
+          "officialRating": 123,
+          "speedRating": 126,
+          "odds": {
+            "current": "5/1"
+          }
+        },
+        {
+          "id": "exeter-2026-11-05-1500-6",
+          "number": 6,
+          "name": "Quarry Bell",
+          "age": 11,
+          "sex": "g",
+          "weightLbs": 155,
+          "trainer": {
+            "name": "D. Coyle",
+            "recent": {
+              "runs": 8,
+              "wins": 1,
+              "days": 14
+            }
+          },
+          "jockey": {
+            "name": "T. Hale",
+            "recent": {
+              "runs": 12,
+              "wins": 0,
+              "days": 14
+            }
+          },
+          "form": [
+            {
+              "date": "2026-10-20",
+              "course": "Ffos Las",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5280,
+              "going": "Heavy",
+              "raceClass": 3,
+              "position": 6,
+              "ran": 8,
+              "beatenLengths": 30,
+              "officialRating": 123,
+              "isHandicap": true
+            },
+            {
+              "date": "2026-04-15",
+              "course": "Exeter",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5280,
+              "going": "Good",
+              "raceClass": 3,
+              "position": 7,
+              "ran": 9,
+              "beatenLengths": 25,
+              "officialRating": 125,
+              "isHandicap": true
+            },
+            {
+              "date": "2026-03-20",
+              "course": "Exeter",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5060,
+              "going": "Soft",
+              "raceClass": 3,
+              "position": 5,
+              "ran": 9,
+              "beatenLengths": 14,
+              "officialRating": 126,
+              "isHandicap": true
+            }
+          ],
+          "silks": [
+            "#ffcc00",
+            "#003366"
+          ],
+          "officialRating": 121,
+          "speedRating": 110,
+          "odds": {
+            "current": "18/1"
+          }
+        },
+        {
+          "id": "exeter-2026-11-05-1500-7",
+          "number": 7,
+          "name": "Fennel Brook",
+          "age": 7,
+          "sex": "m",
+          "weightLbs": 154,
+          "trainer": {
+            "name": "H. Penrose",
+            "recent": {
+              "runs": 16,
+              "wins": 2,
+              "days": 14
+            },
+            "course": {
+              "runs": 22,
+              "wins": 3
+            }
+          },
+          "jockey": {
+            "name": "C. Bryant",
+            "recent": {
+              "runs": 15,
+              "wins": 3,
+              "days": 14
+            },
+            "claimLbs": 3
+          },
+          "form": [
+            {
+              "date": "2026-10-12",
+              "course": "Exeter",
+              "raceType": "Hurdle",
+              "surface": "Turf",
+              "distanceYards": 5060,
+              "going": "Soft",
+              "raceClass": 3,
+              "position": 2,
+              "ran": 11,
+              "beatenLengths": 0.75,
+              "officialRating": 121,
+              "isHandicap": true,
+              "comment": "Stayed on strongly from the last"
+            },
+            {
+              "date": "2026-04-20",
+              "course": "Exeter",
+              "raceType": "Hurdle",
+              "surface": "Turf",
+              "distanceYards": 4620,
+              "going": "Good",
+              "raceClass": 3,
+              "position": 4,
+              "ran": 12,
+              "beatenLengths": 3,
+              "officialRating": 120,
+              "isHandicap": true
+            }
+          ],
+          "silks": [
+            "#2e4a7d",
+            "#e3e3e3"
+          ],
+          "officialRating": 120,
+          "speedRating": 120,
+          "odds": {
+            "current": "9/2",
+            "opening": "8/1"
+          }
+        },
+        {
+          "id": "exeter-2026-11-05-1500-8",
+          "number": 8,
+          "name": "Ridgeway Bard",
+          "age": 8,
+          "sex": "g",
+          "weightLbs": 152,
+          "trainer": {
+            "name": "F. Lockyer",
+            "recent": {
+              "runs": 6,
+              "wins": 1,
+              "days": 14
+            }
+          },
+          "jockey": {
+            "name": "L. Ward",
+            "recent": {
+              "runs": 10,
+              "wins": 1,
+              "days": 14
+            }
+          },
+          "form": [
+            {
+              "date": "2026-10-18",
+              "course": "Wincanton",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5500,
+              "going": "Soft",
+              "raceClass": 3,
+              "position": 4,
+              "ran": 9,
+              "beatenLengths": 5,
+              "officialRating": 119,
+              "isHandicap": true
+            },
+            {
+              "date": "2026-10-01",
+              "course": "Chepstow",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5280,
+              "going": "Good to Soft",
+              "raceClass": 3,
+              "position": 3,
+              "ran": 8,
+              "beatenLengths": 2.5,
+              "officialRating": 120,
+              "isHandicap": true
+            },
+            {
+              "date": "2026-04-10",
+              "course": "Wincanton",
+              "raceType": "Chase",
+              "surface": "Turf",
+              "distanceYards": 5280,
+              "going": "Good",
+              "raceClass": 4,
+              "position": 1,
+              "ran": 10,
+              "wonByLengths": 1.5,
+              "officialRating": 116,
+              "isHandicap": true
+            }
+          ],
+          "silks": [
+            "#556b2f",
+            "#f0e68c"
+          ],
+          "officialRating": 118,
+          "speedRating": 119,
+          "odds": {
+            "current": "14/1"
+          }
+        }
+      ]
+    }
+  ]
+}
