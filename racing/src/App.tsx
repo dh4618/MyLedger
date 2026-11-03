@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { BrowserRouter, Link, Route, Routes, useLocation } from 'react-router-dom';
+import { useEffect, useRef, type ReactNode } from 'react';
+import { BrowserRouter, Link, MemoryRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { RaceListPage } from './pages/RaceListPage';
 import { RacePage } from './pages/RacePage';
 
@@ -11,9 +11,59 @@ function ScrollToTop() {
   return null;
 }
 
+const FUTURE = { v7_startTransition: true, v7_relativeSplatPath: true };
+
+/**
+ * The single-file preview build (`npm run build:preview`) runs where only a plain `#name`
+ * survives in a shared link, so there the race id itself is the hash: `#kempton-2026-11-04-1740`.
+ * Normal builds use real paths (`/race/kempton-2026-11-04-1740`).
+ */
+const PLAIN_HASH = import.meta.env.MODE === 'preview';
+
+function hashToPath(hash: string): string {
+  const id = hash.replace(/^#/, '');
+  return id ? `/race/${id}` : '/';
+}
+
+/** Keeps the in-memory route and `location.hash` in step, both ways (so Back works). */
+function PlainHashSync() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const current = useRef(location.pathname);
+  current.current = location.pathname;
+
+  useEffect(() => {
+    const m = location.pathname.match(/^\/race\/(.+)$/);
+    const want = m ? `#${m[1]}` : '';
+    if (window.location.hash !== want && !(want === '' && window.location.hash === '#')) window.location.hash = want;
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const onHash = () => {
+      const path = hashToPath(window.location.hash);
+      if (path !== current.current) navigate(path);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, [navigate]);
+  return null;
+}
+
+function Router({ children }: { children: ReactNode }) {
+  if (PLAIN_HASH) {
+    return (
+      <MemoryRouter initialEntries={[hashToPath(window.location.hash)]} future={FUTURE}>
+        <PlainHashSync />
+        {children}
+      </MemoryRouter>
+    );
+  }
+  return <BrowserRouter future={FUTURE}>{children}</BrowserRouter>;
+}
+
 export function App() {
   return (
-    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <Router>
       <ScrollToTop />
       <header className="topbar">
         <Link to="/" className="brand">
@@ -41,6 +91,6 @@ export function App() {
           or call the National Gambling Helpline on 0808 8020 133.
         </p>
       </footer>
-    </BrowserRouter>
+    </Router>
   );
 }

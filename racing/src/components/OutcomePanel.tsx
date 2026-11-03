@@ -46,14 +46,14 @@ export function OutcomePanel({ race, analysis }: { race: Race; analysis: RaceAna
           return (
             <li key={ra.runnerId} className={`chance-row${ra.rank === 1 ? ' is-top' : ''}`}>
               <span className="chance-rank" aria-label={`Rank ${ra.rank}`}>{ra.rank}</span>
-              <a className="chance-name" href={`#runner-${runner.id}`}>
+              <button type="button" className="chance-name" onClick={() => scrollToRunner(runner.id)}>
                 <span className="chance-horse">
                   <Silks colours={runner.silks} />
                   <strong>{runner.name}</strong>
                   <span className="muted">#{runner.number}</span>
                 </span>
                 <span className="chance-verdict">{ra.verdict}</span>
-              </a>
+              </button>
               <span className="bar-cell" data-tip={tip} tabIndex={0} aria-label={tip}>
                 <span className="bar-track">
                   <span className="bar" style={{ width: `${(ra.winChance / scale) * 100}%` }} />
@@ -71,6 +71,11 @@ export function OutcomePanel({ race, analysis }: { race: Race; analysis: RaceAna
       </p>
     </section>
   );
+}
+
+function scrollToRunner(id: string) {
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.getElementById(`runner-${id}`)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
 }
 
 function SourceBadge({ analysis }: { analysis: RaceAnalysis }) {
