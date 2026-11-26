@@ -276,7 +276,7 @@ The picker's preview cards carry `data-theme` on themselves, so each paints stra
 
 ## Hatchery
 
-The **Pet** tab. Completing a task earns a **star**; ten stars buy a **mystery egg**;
+The **Pet** tab. Completing a task earns a **star**; stars buy a **mystery egg**;
 opening it reveals one of four creatures — Fox, Frog, Tabby Cat or Inky — and you raise it
 by carrying on with your day.
 
@@ -295,9 +295,12 @@ Pacing is `STAGE_STEPS` in `src/game.js`: **5 tasks** to hatch, **10 more** to y
 **15 more** to adult — thirty for a full-grown creature, each stage asking more than the
 last. `STAGE_AT` is derived from it, so the thresholds have one source of truth.
 
-> **`STAGE_STEPS` is currently `[1, 1, 1]`, a testing value** that walks the whole loop in a
-> few taps. Put it back to `[5, 10, 15]` before this is used for real. `EGG_PRICE` was left
-> at 10, so buying the first egg is the only slow part left.
+`EGG_PRICE` is what an egg costs: **10 stars**, enough that the first one is something you
+work towards, which is what makes buying it worth anything.
+
+> **Both are currently turned down for testing**: `STAGE_STEPS` is `[1, 1, 1]` and
+> `EGG_PRICE` is `1`, so the whole loop runs in a handful of taps. Put them back to
+> `[5, 10, 15]` and `10` before this is used for real.
 
 ### The album, and the icon
 

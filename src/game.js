@@ -6,7 +6,11 @@
 
 import { SPECIES_IDS } from './pixels.js';
 
-export const EGG_PRICE = 10;
+// TESTING VALUE. The real price is 10 stars — enough that the first egg is something
+// you work towards, which is what makes buying one worth anything. Turned down to 1 so
+// the loop can be walked end to end in a handful of taps. Put it back, along with
+// STAGE_STEPS below, before this is used for real.
+export const EGG_PRICE = 1;
 
 // What each stage costs: to hatch, then to young adult, then to adult.
 //

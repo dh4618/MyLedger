@@ -164,7 +164,10 @@ export const en = {
   'game.store': 'Store',
   'game.mysteryEgg': 'Mystery egg',
   'game.mysteryEggHint': 'Could be any of the four.',
-  'game.needMore': '{n} more stars to afford one.',
+  /* No noun after the count: there is no plural machinery here, and "1 more stars"
+     is wrong at the production price too, not just the testing one. The star icon
+     and balance sit directly above, so "1 more" is unambiguous. */
+  'game.needMore': '{n} more to afford one.',
   'game.collection': 'Collection',
   'game.collectionEmpty': 'Nothing hatched yet.',
   'game.unopened': 'Unopened',
