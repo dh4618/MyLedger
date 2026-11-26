@@ -277,19 +277,48 @@ The picker's preview cards carry `data-theme` on themselves, so each paints stra
 ## Hatchery
 
 The **Pet** tab. Completing a task earns a **star**; stars buy a **mystery egg**;
-opening it reveals one of four creatures — Fox, Frog, Tabby Cat or Inky — and you raise it
-by carrying on with your day.
+opening it settles which of four creatures — Fox, Frog, Tabby Cat or Inky — is inside, and
+you raise it by carrying on with your day.
 
-At the top of the tab is a **room**, where everything you have hatched mills about. Only
-hatched creatures walk; an opened egg sits there too, so the room isn't empty while you are
-incubating, and an unopened one stays out of it because you don't know what's in it.
+**Opening an egg does not tell you what it is.** The species is rolled and written down, but
+the name shows as `???` until one of that species has hatched: the name is the payoff for
+hatching, not for buying. One hatched fox names foxes for good, so a second fox egg has
+nothing left to hide. That rule is `knownSpecies()` in `src/game.js`, derived like everything
+else here — "has one of these ever hatched" is just "is any of them past the egg stage" — and
+the panel routes every name through one function, so the room, the collection, the album and
+the slot can't disagree about what you know.
 
-Where each resident stands, how far it roams and how fast all come from a hash of its id,
-so it keeps its spot and its gait across re-renders instead of teleporting on every repaint.
+### The room
+
+At the top of the tab is a **room**, with a **hatch zone** on the left and a **play zone** on
+the right. Eggs wait in the nest; hatched creatures play on the mat. Only hatched creatures
+walk, an opened egg sits there so the room isn't empty while you're incubating, and an
+unopened one stays out of it because you don't know what's in it.
+
+The zone table lives in `HatcheryPanel` and is handed to CSS as custom properties rather than
+written out twice, so the nest is drawn at the middle of the band eggs stand in and the two
+can't drift apart as the layout is tuned.
+
+**Eggs are laid out, creatures are scattered.** A creature's spot, roam and gait all come from
+a hash of its id, so it keeps them across re-renders instead of teleporting on every repaint.
 That hash is an **avalanche mix, not `h * 31 + char`**: `genId()` is a timestamp plus a short
 random suffix, so two creatures bought in the same session differ in a character or two, and
 a weak hash put them within a couple of percent of each other — the room looked like one
-stacked pile.
+stacked pile. Eggs get no hash for their x: they are spaced evenly across the nest in
+collection order, because seeded spots in a band that narrow piled two eggs on top of each
+other often enough to look like a bug, and eggs in a nest sit in a row anyway.
+
+`left` is the **middle** of a resident, not its left edge — the sprites are 12 to 21 pixels
+wide, and a shared left edge put a tall thin egg and a wide cat in visibly different places
+within the same band. The wander animation is therefore on an inner element, since the outer
+is already using its transform to centre the sprite.
+
+Wall, rail and floor are hard-stop CSS gradients; the nest and ball are sprites. The first
+version tiled both surfaces with small alternating squares, which is the pattern every image
+editor uses to mean *nothing here* — the room read as a missing background. Striped paper and
+grouted tiles say wall and floor instead.
+
+### Pacing and price
 
 Pacing is `STAGE_STEPS` in `src/game.js`: **5 tasks** to hatch, **10 more** to young adult,
 **15 more** to adult — thirty for a full-grown creature, each stage asking more than the
@@ -310,7 +339,9 @@ a creature has passed through are implied by where it is now. A young adult fox 
 egg and a kid; an opened egg that hasn't hatched is just an egg; an unopened one contributes
 nothing, because you don't know what it is. Two creatures of the same species share one row.
 
-Only pictures you have actually collected appear — no locked silhouettes.
+Only pictures you have actually collected appear — no locked silhouettes. A row whose species
+hasn't hatched yet is headed `???` and holds the one egg picture, which is the album's half of
+the same rule the rest of the panel follows.
 
 Tapping a picture **pins** it as the app's face, in the header, the loading screen and the
 empty state. Tapping the pinned one again clears it.
@@ -327,8 +358,25 @@ can produce that, but a hand-edited blob can.
 ### Earning a star
 
 The **star total sits in the header**, so it's there on every tab and a flying star always
-has somewhere to land. Ticking a task launches one from the checkbox, carrying a **+1**, and
-the counter squeezes as it arrives.
+has somewhere to land. Ticking a task **throws** one from the checkbox, carrying a **+1**,
+and the counter squeezes as it arrives.
+
+**It is a throw, not a slide.** Three nested elements, one motion each: the outer carries the
+star along the straight line between the two points, the middle adds the rise and fall that
+bends that line into an arc, and the sprite does the pop and the blink. The lift is computed
+from the distance in `launchStar`, so a tick near the counter is a flick and one from the
+bottom of a long day is a proper lob. A single keyframe set would have to spell the parabola
+out position by position in px, with the height baked in.
+
+**The star and the +1 are drawn, not icons**, and the motion is **stepped** — the travel hops
+once per ~14px, the arc holds eight heights off `4t(1−t)`, the sprite scales only by whole
+multiples (3x, and 0.667 of that is 2x). Moving pixel art smoothly, in a lucide outline, is
+what made the old straight line read as a browser effect laid over the game rather than part
+of it. The counter it lands in is the same drawing.
+
+Every one of those keyframe sets finishes at **92%** and holds. `steps(n, end)` shows the
+value a segment *starts* at, so a two-keyframe animation would leave the star one step short
+of the counter and then be removed at `animationend`, having never drawn the arrival.
 
 **The flight delivers the increment**: the displayed number holds back however many stars
 are still in the air (`balance − flights.length`), so it goes up as each one lands rather
@@ -363,8 +411,8 @@ runs a month of game actions and asserts the `days` blob comes out byte-identica
 
 ### The art
 
-`src/pixels.js` holds all sixteen sprites as a palette plus one string per row — a few KB,
-no image requests, crisp at any size through `<Pixel>`, and a future Aseprite redraw
+`src/pixels.js` holds all sixteen creature sprites as a palette plus one string per row — a
+few KB, no image requests, crisp at any size through `<Pixel>`, and a future Aseprite redraw
 replaces that one file. They keep their own palettes rather than being recoloured per theme:
 they are drawn artwork, and each carries its own outline, so they read on every palette.
 
@@ -372,6 +420,26 @@ If you ever regenerate them from a sheet: **do not decide transparency by colour
 frog's eyes, the cat's muzzle and Inky's page are white *paint*, and a colour test reads
 them as holes — invisible on a light background, obvious on Dracula. Flood-fill from outside
 each sprite instead, so only white the fill can reach counts as background.
+
+Below the creatures, the same file holds the app's own **furniture**: the star, the `+1`, the
+nest, the ball. Those are the other way round — UI, not artwork, so they have to sit inside
+four palettes without looking pasted on, and their palettes are **CSS rather than hex**:
+`currentColor`, `var(--accent)`, `color-mix(...)`. `<Pixel>` renders a palette entry
+containing `(` as an inline style rather than a `fill` attribute; var() in a presentation
+attribute is thinly supported and silently paints black where it isn't.
+
+Two things learned drawing them, both visible in the comments:
+
+- **At nine pixels, silhouette is everything and shading is noise.** The star had a pale
+  highlight through its upper arm; mixed light enough to read as light, it was
+  indistinguishable from the background and the star looked notched. It is solid now.
+- **The reverse holds at twenty.** The nest was first a two-row basket weave, which at 4x was
+  a grey plank. Drawn as a bowl — dark rim, pale opening, body falling away, a sparse weave
+  inside a defined outline — it reads.
+
+Sprites are scaled by **whole multiples**. A 9-wide sprite at 14px renders some pixels 1px
+and some 2px, which on a shape that small is a lopsided star; that is why there is a separate
+7-wide `PIXEL_STAR_SMALL` for the 14px slots rather than a bad scale of the 9-wide one.
 
 ---
 

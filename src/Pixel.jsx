@@ -7,9 +7,19 @@ import { PIXEL_ALPHABET } from './pixels';
 // ~576 nodes to a few dozen. crispEdges keeps the pixels square at any size — without
 // it the browser smooths the rect edges and the art goes soft when scaled up.
 //
-// The sprite's own palette is used verbatim, deliberately: these are drawn artwork
-// and recolouring them per theme would wreck them. They are legible on every palette
+// A creature's palette is used verbatim, deliberately: these are drawn artwork and
+// recolouring them per theme would wreck them. They are legible on every palette
 // because each carries its own outline.
+//
+// The app's own furniture — the star, the nest, the ball — is the other way round, and
+// its palettes are CSS: `currentColor`, `var(--accent)`, `color-mix(...)`. Those have
+// to go through the style attribute. A presentation attribute is parsed as a CSS value
+// in theory, and var() in `fill="..."` does work in current browsers, but it is thinly
+// supported and silently paints black where it doesn't — on an inline style it simply
+// works everywhere. Hex stays an attribute, which is every creature sprite and the bulk
+// of the rects.
+const isCss = (paint) => typeof paint === 'string' && paint.includes('(');
+
 export default function Pixel({ sprite, size = 48, label, className = '' }) {
   if (!sprite) return null;
   const { w, h, palette, rows } = sprite;
@@ -22,8 +32,16 @@ export default function Pixel({ sprite, size = 48, label, className = '' }) {
       if (ch === '.') { x += 1; continue; }
       let run = 1;
       while (x + run < row.length && row[x + run] === ch) run += 1;
+      const paint = palette[PIXEL_ALPHABET.indexOf(ch)];
       rects.push(
-        <rect key={`${x}-${y}`} x={x} y={y} width={run} height={1} fill={palette[PIXEL_ALPHABET.indexOf(ch)]} />
+        <rect
+          key={`${x}-${y}`}
+          x={x}
+          y={y}
+          width={run}
+          height={1}
+          {...(isCss(paint) ? { style: { fill: paint } } : { fill: paint })}
+        />
       );
       x += run;
     }

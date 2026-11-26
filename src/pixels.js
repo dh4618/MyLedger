@@ -414,3 +414,117 @@ export const spriteFor = (species, stage) => {
   if (!s) return MYSTERY_EGG;
   return s[stage] || s.egg;
 };
+
+/* ===========================================================================
+   Furniture: the app's own pixel art, drawn here rather than extracted.
+
+   The creatures above carry their own colours because they are artwork — recolouring
+   a fox would wreck it. These are the opposite: UI parts, which have to sit inside
+   four palettes without looking pasted on. So their palettes are CSS, not hex, and
+   one sprite serves every theme. <Pixel> renders a non-hex entry as a style rather
+   than an attribute, which is what makes var() and color-mix() work here.
+
+   `currentColor` is the useful one: a star put inside an element with
+   `color: var(--accent)` comes out in that theme's accent, and the same sprite in
+   the header, the panel and mid-flight needs no variants.
+   =========================================================================== */
+
+// The five-pointed star that stands for a completed task, wherever stars are shown.
+//
+// Solid, after a version with a pale highlight through the upper arm: a highlight on
+// a nine-pixel shape is two or three pixels, and mixed light enough to read as light
+// it was indistinguishable from the background — the star looked notched rather than
+// lit. A silhouette this small wants no shading at all.
+export const PIXEL_STAR = {
+  w: 9, h: 9,
+  palette: ['currentColor'],
+  rows: [
+    '....0....',
+    '...000...',
+    '...000...',
+    '000000000',
+    '.0000000.',
+    '..00000..',
+    '..00.00..',
+    '.00...00.',
+    '.0.....0.',
+  ],
+};
+
+// The same star at a size where 9 pixels wide would have to be drawn at a fraction of
+// a pixel. Sprites are scaled by whole numbers on purpose — a 9-wide sprite at 14px
+// renders some of its pixels 1px and some 2px, which on a shape this small is visible
+// as a lopsided star. 7 wide at 2x fits the 14px slots in the header and the price
+// button exactly, so it gets its own drawing rather than a bad scale of the other.
+export const PIXEL_STAR_SMALL = {
+  w: 7, h: 7,
+  palette: ['currentColor'],
+  rows: [
+    '...0...',
+    '..000..',
+    '0000000',
+    '.00000.',
+    '..000..',
+    '.00.00.',
+    '.0...0.',
+  ],
+};
+
+// "+1", drawn rather than typeset: a 13px mono glyph beside a 9px sprite looked like
+// a label stuck to the art. This is the same material as the star it rides with.
+export const PIXEL_PLUS_ONE = {
+  w: 7, h: 5,
+  palette: ['currentColor'],
+  rows: [
+    '.....0.',
+    '.0..00.',
+    '000..0.',
+    '.0...0.',
+    '....000',
+  ],
+};
+
+// The hatch zone's nest. Neutral on purpose: three tones of --muted, so it reads as
+// straw on the cream palettes and as wicker in the dark without ever competing with
+// the egg sitting in it.
+//
+// It is a bowl, not a weave. The first attempt was an alternating basket texture two
+// rows deep, which at 4x was a grey plank: at this scale a silhouette carries the
+// shape and the texture is just noise. Dark rim, pale opening, body falling away
+// underneath, a few straw ends above.
+const NEST_DARK = 'color-mix(in srgb, var(--muted) 66%, var(--surface))';
+const NEST_MID = 'color-mix(in srgb, var(--muted) 42%, var(--surface))';
+const NEST_LIGHT = 'color-mix(in srgb, var(--muted) 22%, var(--surface))';
+export const PIXEL_NEST = {
+  w: 20, h: 9,
+  palette: [NEST_DARK, NEST_MID, NEST_LIGHT],
+  rows: [
+    '....0..0..0..0..0...',
+    '..0000000000000000..',
+    '..0222222222222220..',
+    '..0111011101110110..',
+    '...00111011101110...',
+    '...01101110111010...',
+    '....011101110110....',
+    '.....0011101110.....',
+    '......00000000......',
+  ],
+};
+
+// The play zone's ball. The one thing in the room drawn in the accent, so the eye
+// lands on the half of the room where something is actually happening.
+export const PIXEL_BALL = {
+  w: 9, h: 9,
+  palette: ['var(--accent)', 'color-mix(in srgb, var(--accent) 32%, var(--surface))'],
+  rows: [
+    '..00000..',
+    '.0110000.',
+    '001000000',
+    '000000000',
+    '000000000',
+    '000000000',
+    '000000000',
+    '.0000000.',
+    '..00000..',
+  ],
+};

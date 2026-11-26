@@ -8,7 +8,7 @@ import Pixel from './Pixel';
 import { emptyGroceries, normalizeGroceries, addItem, toggleItem, removeItem, clearBought } from './groceries';
 import { supabase } from './supabase';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays, Sparkles, ChevronDown, Trophy, RotateCcw, ShoppingCart, BarChart3, Flame, Egg, Star } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays, Sparkles, ChevronDown, Trophy, RotateCcw, ShoppingCart, BarChart3, Flame, Egg } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
 import { useLang } from './i18n/LanguageProvider';
 import ProgressBar from './ProgressBar';
@@ -18,7 +18,7 @@ import { GOAL_ICONS, GoalIcon, hasGoalIcon } from './goalIcons';
 import { genId } from './ids';
 import { toDateStr, fromDateStr, addDays, startOfWeek, daysInMonth, formatHeadline, formatShortDate, formatMonthYear } from './dates';
 import { computeStreak } from './streak';
-import { spriteFor, MYSTERY_EGG } from './pixels';
+import { spriteFor, MYSTERY_EGG, PIXEL_STAR, PIXEL_STAR_SMALL, PIXEL_PLUS_ONE } from './pixels';
 import { emptyGame, normalizeGame, totalCompleted, stars, buyEgg, openEgg, startIncubating, bankActive, settle, iconFor, pinIcon, clearIcon } from './game';
 
 // Goal colours are no longer stored on the goal: they come from the palette, so
@@ -419,12 +419,28 @@ export default function Ledger() {
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const to = target.getBoundingClientRect();
     const id = genId();
+    const x = fromRect.left + fromRect.width / 2;
+    const y = fromRect.top + fromRect.height / 2;
+    const dx = (to.left + to.width / 2) - x;
+    const dy = (to.top + to.height / 2) - y;
+    const span = Math.hypot(dx, dy);
     setFlights((list) => [...list, {
       id,
-      x: fromRect.left + fromRect.width / 2,
-      y: fromRect.top + fromRect.height / 2,
-      dx: (to.left + to.width / 2) - (fromRect.left + fromRect.width / 2),
-      dy: (to.top + to.height / 2) - (fromRect.top + fromRect.height / 2),
+      x,
+      y,
+      dx,
+      dy,
+      // It is thrown, not dragged: the CSS carries the star along the straight line
+      // between the two points and adds this much lift at the top, which bends that
+      // line into an arc. Scaled by the distance so a tick near the counter is a
+      // flick and one from the bottom of a long day is a proper lob, and capped so a
+      // tall screen doesn't throw it off the top.
+      lift: Math.round(Math.min(130, 36 + span * 0.24)),
+      // Whole-pixel hops rather than a glide, about one per 14px travelled. Moving
+      // pixel art smoothly is what made the straight line read as a browser effect
+      // laid over the game instead of part of it. Set here rather than in the
+      // stylesheet because it follows from the distance.
+      steps: Math.min(26, Math.max(9, Math.round(span / 14))),
     }]);
   };
   // A brief squeeze as each star lands, so the number doesn't silently tick over.
@@ -940,7 +956,9 @@ export default function Ledger() {
               {/* In the header rather than on the day page so it is there on every tab,
                   and so a flying star always has somewhere to land. */}
               <div ref={starCounterRef} className={`dt-star-count ${landed ? 'landed' : ''}`} title={t('game.starsLabel')}>
-                <Star size={15} />
+                {/* The same drawn star that flies here, so the thing that arrives and
+                    the thing it lands in are made of the same pixels. */}
+                <Pixel sprite={PIXEL_STAR_SMALL} size={14} />
                 {/* Holds back the stars still in the air, so the number goes up as each
                     one lands rather than jumping before it arrives — the flight is the
                     delivery, not a decoration over an increment that already happened.
@@ -1101,17 +1119,39 @@ export default function Ledger() {
         <button className="dt-fab" onClick={() => openAddTask()}><Plus size={26} /></button>
 
         {/* Fixed and pointer-events:none, so a star in flight never swallows a tap on
-            the row underneath — you can tick three things in a row without waiting. */}
+            the row underneath — you can tick three things in a row without waiting.
+
+            Three nested elements because a thrown thing is two motions at once: the
+            outer one carries the star along the straight line between the checkbox and
+            the counter, the middle one adds the rise and fall that bends that line into
+            an arc, and the sprite does the pop and the blink. One keyframe set would
+            have to spell the parabola out step by step, and could not scale its height
+            to how far the star was thrown. */}
         {flights.map((f) => (
           <div
             key={f.id}
             className="dt-star-flight"
-            style={{ left: f.x, top: f.y, '--dx': `${f.dx}px`, '--dy': `${f.dy}px` }}
-            onAnimationEnd={() => endFlight(f.id)}
+            style={{
+              left: f.x,
+              top: f.y,
+              '--dx': `${f.dx}px`,
+              '--dy': `${f.dy}px`,
+              '--lift': `${f.lift}px`,
+              animationTimingFunction: `steps(${f.steps}, end)`,
+            }}
+            /* Animation events bubble, and the arc and the sprite have their own. Only
+               the travel finishing means the star has arrived. */
+            onAnimationEnd={(e) => { if (e.target === e.currentTarget) endFlight(f.id); }}
             aria-hidden="true"
           >
-            <Star size={18} />
-            <span className="dt-star-plus">+1</span>
+            <div className="dt-star-arc">
+              {/* 3x and 3x. Both whole multiples of the sprite, which is the rule for
+                  everything drawn here — see dt-star-pop for the other half of it. */}
+              <div className="dt-star-sprite">
+                <Pixel sprite={PIXEL_STAR} size={27} />
+                <Pixel sprite={PIXEL_PLUS_ONE} size={21} className="dt-star-plus" />
+              </div>
+            </div>
           </div>
         ))}
 

@@ -179,6 +179,24 @@ export function collection(game, total) {
   return rows.sort((a, b) => b.live - a.live);
 }
 
+// Which species you can put a name to.
+//
+// Opening an egg tells you which creature is inside, but it doesn't tell *you*: the
+// name is the payoff for hatching it, so until one of a species has been out of its
+// shell the app shows ??? in place of the name. Once one has hatched the species is
+// named for good — it is the same animal either way, so a second fox egg has nothing
+// left to hide.
+//
+// Derived, like everything else here: progress only goes up, so "has one of these ever
+// hatched" is just "is any of them past the egg stage".
+export function knownSpecies(game, total) {
+  const known = new Set();
+  collection(normalizeGame(game), total).forEach((row) => {
+    if (row.species && row.stage !== 'egg') known.add(row.species);
+  });
+  return known;
+}
+
 // ---- the album ----
 
 // Every picture you have collected, grouped by species.
