@@ -3,7 +3,7 @@ import { X, Star, Sparkles } from 'lucide-react';
 import { useLang } from './i18n/LanguageProvider';
 import Pixel from './Pixel';
 import { spriteFor, MYSTERY_EGG } from './pixels';
-import { stars, collection, activeEntry, liveProgress, nextStage, stageOf, album, isPinned, EGG_PRICE } from './game';
+import { stars, collection, activeEntry, liveProgress, nextStage, stageOf, album, isPinned, residents, seedAt, EGG_PRICE } from './game';
 
 // Where completed tasks turn into something. Tasks earn stars, stars buy an egg, the
 // egg reveals one of four creatures, and you raise it by carrying on with your day.
@@ -16,6 +16,7 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
   const active = activeEntry(game);
   const rows = collection(game, total);
   const pictures = album(game, total);
+  const living = residents(game, total);
   const canBuy = balance >= EGG_PRICE;
 
   const activeLive = active ? liveProgress(active, game, total) : 0;
@@ -30,6 +31,38 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
         <div className="dt-modal-title">
           {t('game.title')}
           <button className="dt-icon-btn" onClick={onClose}><X size={20} /></button>
+        </div>
+
+        {/* ---- the room ---- */}
+        <div className="dt-habitat">
+          {living.length === 0 ? (
+            <div className="dt-habitat-empty">{t('game.habitatEmpty')}</div>
+          ) : living.map((who) => {
+            // Everything positional comes off the id-derived seed, so a creature keeps
+            // its spot and its gait between renders instead of teleporting on every
+            // repaint. Eggs get a spot but no walk — eggs don't walk.
+            const left = 6 + (seedAt(who.seed, 1) % 76);
+            const top = 10 + (seedAt(who.seed, 2) % 58);
+            const duration = 7 + (seedAt(who.seed, 3) % 9);
+            const delay = -(seedAt(who.seed, 4) % 11);
+            const drift = 10 + (seedAt(who.seed, 5) % 16);
+            return (
+              <div
+                key={who.id}
+                className={`dt-resident ${who.walks ? 'walks' : ''} ${who.isActive ? 'active' : ''}`}
+                style={{
+                  left: `${left}%`,
+                  top: `${top}%`,
+                  '--drift': `${drift}%`,
+                  animationDuration: `${duration}s`,
+                  animationDelay: `${delay}s`,
+                }}
+                title={`${creatureName(who.species)} · ${stageName(who.stage)}`}
+              >
+                <Pixel sprite={spriteFor(who.species, who.stage)} size={44} label={creatureName(who.species)} />
+              </div>
+            );
+          })}
         </div>
 
         <div className="dt-stars">

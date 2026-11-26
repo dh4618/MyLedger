@@ -225,18 +225,55 @@ export const isPinned = (game, species, stage) => {
   return !!icon && icon.species === species && icon.stage === stage;
 };
 
-// What the app draws as its face, in order: the picture you pinned, else whatever you
-// are raising, else your most advanced creature, else nothing — the caller falls back
-// to the generic egg.
+// What the app draws as its face: the picture you pinned, or nothing — in which case
+// the caller shows the generic egg.
+//
+// It used to fall back to whatever you were raising, which meant the icon changed under
+// you every time a creature grew. Pinning is the only thing that sets it now, so the
+// icon stays put until you say otherwise.
 //
 // The pin is checked against the album rather than trusted: a pin naming a picture you
-// do not own falls through instead of putting a creature you never raised in the
-// header. Nothing in the app can produce that today, but a hand-edited blob can.
+// do not own gives the generic egg instead of a creature you never raised. Nothing in
+// the app can produce that today, but a hand-edited blob can.
 export function iconFor(game, total) {
   const g = normalizeGame(game);
   if (g.icon && hasPicture(g, total, g.icon.species, g.icon.stage)) return g.icon;
-  const active = activeEntry(g);
-  if (active && active.species) return { species: active.species, stage: stageOf(liveProgress(active, g, total)) };
-  const best = collection(g, total).find((r) => r.species);
-  return best ? { species: best.species, stage: best.stage } : null;
+  return null;
+}
+
+// Who is in the pet space. Hatched creatures wander; an opened egg that hasn't hatched
+// sits there too, because an empty room while you are actively incubating something
+// would be a strange thing to show. Unopened eggs stay out of it — you don't know what
+// is in them yet.
+//
+// Avalanche mix (murmur3's finalizer). A plain `h * 31 + char` hash is not enough here:
+// genId() is a timestamp plus a short random suffix, so two creatures bought in the same
+// session differ in one or two characters — and with a weak hash their positions landed
+// within a couple of percent of each other and the room looked like one stacked pile.
+// This spreads a one-character difference across the whole range.
+const mix = (n) => {
+  let h = n >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 2246822507);
+  h = Math.imul(h ^ (h >>> 13), 3266489909);
+  return (h ^ (h >>> 16)) >>> 0;
+};
+
+// Each quantity a caller needs — where it stands, how far it roams, how fast — comes
+// from its own re-mix of the seed, so they vary independently instead of moving together.
+export const seedAt = (seed, index) => mix(seed + index * 0x9e3779b9);
+
+// `seed` is derived from the id so a resident keeps its spot and its gait across
+// re-renders instead of leaping about whenever React repaints.
+export function residents(game, total) {
+  const g = normalizeGame(game);
+  return collection(g, total)
+    .filter((row) => row.species)
+    .map((row) => ({
+      id: row.id,
+      species: row.species,
+      stage: row.stage,
+      walks: row.kind === 'creature',
+      isActive: g.activeId === row.id,
+      seed: mix([...String(row.id)].reduce((h, ch) => Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0, 2166136261)),
+    }));
 }

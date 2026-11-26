@@ -893,18 +893,9 @@ export default function Ledger() {
               </div>
             </div>
             <div className="dt-topbar-actions">
-              {/* The badge is the whole point of putting this in the header rather than
-                  inside Manage: you can see there's shopping to do without opening it. */}
-              <button className="dt-hatch-btn" title={t('game.title')} onClick={() => setShowHatchery(true)}>
-                <Egg size={20} />
-              </button>
-              <button className="dt-report-btn" title={t('report.title')} onClick={() => setShowReport(true)}>
-                <BarChart3 size={20} />
-              </button>
-              <button className="dt-cart-btn" title={t('grocery.title')} onClick={() => setShowGroceries(true)}>
-                <ShoppingCart size={20} />
-                {outstandingGroceries > 0 && <span className="dt-cart-badge">{outstandingGroceries}</span>}
-              </button>
+              {/* Day, Pet, Progress and List moved to the bottom bar. Settings stays up
+                  here: it's the one you open least, and four wide tabs beat five narrow
+                  ones on a phone. */}
               <button className="dt-settings-btn" title={t('manage.title')} onClick={() => { setManageGoalId(null); setShowAddGoalInManage(false); setIconPickerGoalId(null); setShowManage(true); }}>
                 <Settings size={20} />
               </button>
@@ -1053,6 +1044,29 @@ export default function Ledger() {
         </div>
 
         <button className="dt-fab" onClick={() => openAddTask()}><Plus size={26} /></button>
+
+        {/* The panels are still sheets over the day page rather than separate screens,
+            so "Day" means close whatever is open. Which tab reads as current follows
+            from that, with no second piece of state to fall out of step with it. */}
+        <nav className="dt-tabbar">
+          {[
+            { id: 'day', Icon: CalendarDays, label: t('tab.day'), on: () => { setShowHatchery(false); setShowReport(false); setShowGroceries(false); } },
+            { id: 'pet', Icon: Egg, label: t('tab.pet'), on: () => { setShowReport(false); setShowGroceries(false); setShowHatchery(true); } },
+            { id: 'progress', Icon: BarChart3, label: t('tab.progress'), on: () => { setShowHatchery(false); setShowGroceries(false); setShowReport(true); } },
+            { id: 'list', Icon: ShoppingCart, label: t('tab.list'), badge: outstandingGroceries, on: () => { setShowHatchery(false); setShowReport(false); setShowGroceries(true); } },
+          ].map(({ id, Icon, label, badge, on }) => {
+            const openTab = showHatchery ? 'pet' : showReport ? 'progress' : showGroceries ? 'list' : 'day';
+            return (
+              <button key={id} data-tab={id} className={`dt-tab ${openTab === id ? 'active' : ''}`} aria-current={openTab === id ? 'page' : undefined} onClick={on}>
+                <span className="dt-tab-icon">
+                  <Icon size={20} />
+                  {badge > 0 && <span className="dt-cart-badge">{badge}</span>}
+                </span>
+                <span className="dt-tab-label">{label}</span>
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
       {showCalendar && (
