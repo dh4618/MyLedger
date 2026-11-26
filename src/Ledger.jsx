@@ -19,7 +19,7 @@ import { genId } from './ids';
 import { toDateStr, fromDateStr, addDays, startOfWeek, daysInMonth, formatHeadline, formatShortDate, formatMonthYear } from './dates';
 import { computeStreak } from './streak';
 import { spriteFor, MYSTERY_EGG } from './pixels';
-import { emptyGame, normalizeGame, totalCompleted, stars, collection, activeEntry, liveProgress, stageOf, buyEgg, openEgg, startIncubating, bankActive, settle } from './game';
+import { emptyGame, normalizeGame, totalCompleted, buyEgg, openEgg, startIncubating, bankActive, settle, iconFor, pinIcon, clearIcon } from './game';
 
 // Goal colours are no longer stored on the goal: they come from the palette, so
 // they change with the theme instead of being frozen hex from whenever the goal
@@ -396,14 +396,12 @@ export default function Ledger() {
     saveGame({ ...gameNow, baseline: completedTotal });
   }, [loading, gameNow, completedTotal]);
 
-  // The app's face: whatever is being raised, else the most advanced thing owned,
-  // else an unopened egg — so a new account sees an egg and a reason to open the store.
-  const faceSprite = (() => {
-    const active = activeEntry(gameNow);
-    if (active && active.species) return spriteFor(active.species, stageOf(liveProgress(active, gameNow, completedTotal)));
-    const best = collection(gameNow, completedTotal).find((r) => r.species);
-    return best ? spriteFor(best.species, best.stage) : MYSTERY_EGG;
-  })();
+  // The app's face: the picture you pinned, else whatever is being raised, else the
+  // most advanced thing owned, else an unopened egg — so a new account sees an egg and
+  // a reason to open the store. The order lives in game.js so the album can show which
+  // of those two modes it is in without re-deriving the rule.
+  const face = iconFor(gameNow, completedTotal);
+  const faceSprite = face ? spriteFor(face.species, face.stage) : MYSTERY_EGG;
 
   // A goal is auto-marked done when it has no active repeating tasks and every
   // Nothing outstanding under this goal: no repeating task still running, and every
@@ -1370,6 +1368,13 @@ export default function Ledger() {
           onOpen={(id) => { const next = openEgg(gameNow, id, Math.floor(Math.random() * 100000)); if (next) saveGame(next); }}
           onStart={(id) => { const next = startIncubating(gameNow, id, completedTotal); if (next) saveGame(next); }}
           onStop={() => saveGame(bankActive(gameNow, completedTotal))}
+          /* Tapping the pinned picture again clears it — without that, pinning once
+             would make the follow-your-pet behaviour unreachable. */
+          onPin={(species, stage) => {
+            const next = pinIcon(gameNow, completedTotal, species, stage);
+            if (next) saveGame(next);
+          }}
+          onUnpin={() => saveGame(clearIcon(gameNow))}
           onClose={() => setShowHatchery(false)}
         />
       )}

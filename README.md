@@ -256,13 +256,42 @@ The picker's preview cards carry `data-theme` on themselves, so each paints stra
 
 The **egg** in the header. Completing a task earns a **star**; ten stars buy a **mystery
 egg**; opening it reveals one of four creatures — Fox, Frog, Tabby Cat or Inky — and you
-raise it by carrying on with your day. **5 tasks** hatch it, **10 more** reach young adult,
-**15 more** reach adult: thirty for a full-grown creature, each stage asking more than the
-last.
+raise it by carrying on with your day.
 
-Whatever you are raising is the app's face, in the header, the loading screen and the empty
-state. With nothing hatched yet you get an unopened egg, which is also what the signed-out
-auth screen shows.
+Pacing is `STAGE_STEPS` in `src/game.js`: **5 tasks** to hatch, **10 more** to young adult,
+**15 more** to adult — thirty for a full-grown creature, each stage asking more than the
+last. `STAGE_AT` is derived from it, so the thresholds have one source of truth.
+
+> **`STAGE_STEPS` is currently `[1, 1, 1]`, a testing value** that walks the whole loop in a
+> few taps. Put it back to `[5, 10, 15]` before this is used for real. `EGG_PRICE` was left
+> at 10, so buying the first egg is the only slow part left.
+
+### The album, and the icon
+
+Every stage a creature reaches is kept as a **picture** you own, listed in the album at the
+bottom of the hatchery. It needs no stored state: progress only ever goes up, so the stages
+a creature has passed through are implied by where it is now. A young adult fox has been an
+egg and a kid; an opened egg that hasn't hatched is just an egg; an unopened one contributes
+nothing, because you don't know what it is. Two creatures of the same species share one row.
+
+Only pictures you have actually collected appear — no locked silhouettes.
+
+Tapping a picture **pins** it as the app's face, in the header, the loading screen and the
+empty state. Tapping the pinned one again clears it. Without that undo, pinning once would
+make the automatic behaviour unreachable.
+
+The face resolves in this order:
+
+```
+pinned picture  →  what you're raising  →  most advanced creature  →  generic egg
+```
+
+so nothing changes until you deliberately pin something, and a new account sees an egg — as
+does the signed-out auth screen, which has no account to read a creature from.
+
+The pin is **checked against the album** rather than trusted. A pin naming a picture you
+don't own falls through to the automatic chain instead of putting a creature you never
+raised in the header. Nothing in the app can produce that, but a hand-edited blob can.
 
 **Stars are derived, never banked.** `earned = (tasks completed ever) − baseline`, where the
 baseline is the completed-task count captured once, the first time the hatchery runs. That

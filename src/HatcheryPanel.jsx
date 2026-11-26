@@ -3,18 +3,19 @@ import { X, Star, Sparkles } from 'lucide-react';
 import { useLang } from './i18n/LanguageProvider';
 import Pixel from './Pixel';
 import { spriteFor, MYSTERY_EGG } from './pixels';
-import { stars, collection, activeEntry, liveProgress, nextStage, stageOf, EGG_PRICE } from './game';
+import { stars, collection, activeEntry, liveProgress, nextStage, stageOf, album, isPinned, EGG_PRICE } from './game';
 
 // Where completed tasks turn into something. Tasks earn stars, stars buy an egg, the
 // egg reveals one of four creatures, and you raise it by carrying on with your day.
 //
 // The panel only ever reads the task log. Nothing in here can tick a task, which is
 // what keeps the report and the streak honest while this sits on top of them.
-export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onStop, onClose }) {
+export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onStop, onPin, onUnpin, onClose }) {
   const { t } = useLang();
   const { balance } = stars(game, total);
   const active = activeEntry(game);
   const rows = collection(game, total);
+  const pictures = album(game, total);
   const canBuy = balance >= EGG_PRICE;
 
   const activeLive = active ? liveProgress(active, game, total) : 0;
@@ -126,6 +127,42 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
             );
           })}
         </div>
+
+        {/* ---- the album ---- */}
+        <div className="dt-field-label" style={{ marginTop: 20 }}>{t('game.album')}</div>
+        {pictures.length === 0 ? (
+          <div className="dt-empty-manage" style={{ padding: '10px 0' }}>{t('game.albumEmpty')}</div>
+        ) : (
+          <>
+            {/* Says which of the two modes the icon is in, so "nothing is ringed" reads
+                as "following your pet" rather than as nothing having been set. */}
+            <div className="dt-hint" style={{ marginTop: 0 }}>
+              {game.icon ? t('game.pinHint') : t('game.following')}
+            </div>
+            {pictures.map((row) => (
+              <div key={row.species} className="dt-album-row">
+                <div className="dt-album-species">{creatureName(row.species)}</div>
+                <div className="dt-album-stages">
+                  {row.stages.map((stage) => {
+                    const pinned = isPinned(game, row.species, stage);
+                    return (
+                      <button
+                        key={stage}
+                        className={`dt-album-shot ${pinned ? 'pinned' : ''}`}
+                        aria-pressed={pinned}
+                        title={`${creatureName(row.species)} · ${stageName(stage)}`}
+                        onClick={() => (pinned ? onUnpin() : onPin(row.species, stage))}
+                      >
+                        <Pixel sprite={spriteFor(row.species, stage)} size={40} />
+                        <span className="dt-album-stage">{stageName(stage)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </>
+        )}
       </div>
     </div>
   );
