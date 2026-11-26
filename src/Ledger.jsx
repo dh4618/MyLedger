@@ -3,10 +3,12 @@ import { readUnflushed, clearUnflushed } from './pendingWrites';
 import useDurableBlob from './useDurableBlob';
 import GroceryList from './GroceryList';
 import ReportPanel from './ReportPanel';
+import HatcheryPanel from './HatcheryPanel';
+import Pixel from './Pixel';
 import { emptyGroceries, normalizeGroceries, addItem, toggleItem, removeItem, clearBought } from './groceries';
 import { supabase } from './supabase';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays, Sparkles, ChevronDown, Trophy, RotateCcw, ShoppingCart, BarChart3, Flame } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays, Sparkles, ChevronDown, Trophy, RotateCcw, ShoppingCart, BarChart3, Flame, Egg } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
 import { useLang } from './i18n/LanguageProvider';
 import ProgressBar from './ProgressBar';
@@ -16,6 +18,8 @@ import { GOAL_ICONS, GoalIcon, hasGoalIcon } from './goalIcons';
 import { genId } from './ids';
 import { toDateStr, fromDateStr, addDays, startOfWeek, daysInMonth, formatHeadline, formatShortDate, formatMonthYear } from './dates';
 import { computeStreak } from './streak';
+import { spriteFor, MYSTERY_EGG } from './pixels';
+import { emptyGame, normalizeGame, totalCompleted, stars, collection, activeEntry, liveProgress, stageOf, buyEgg, openEgg, startIncubating, bankActive, settle } from './game';
 
 // Goal colours are no longer stored on the goal: they come from the palette, so
 // they change with the theme instead of being frozen hex from whenever the goal
@@ -82,7 +86,7 @@ const summarizeRepeat = (r, t, weekdayAbbr, locale) => {
 };
 
 export default function Ledger() {
-  const { themeId, setThemeId, themes, mascotId, setMascotId, mascots, Mascot, ariaKey } = useTheme();
+  const { themeId, setThemeId, themes } = useTheme();
   const { t, locale, weekdayLetters, weekdayAbbr } = useLang();
   const [loading, setLoading] = useState(true);
   const [goals, setGoals] = useState([]);
@@ -112,8 +116,10 @@ export default function Ledger() {
   const [importText, setImportText] = useState('');
   const [importStatus, setImportStatus] = useState('');
   const [groceries, setGroceries] = useState(emptyGroceries());
+  const [game, setGame] = useState(emptyGame());
   const [showGroceries, setShowGroceries] = useState(false);
   const [showReport, setShowReport] = useState(false);
+  const [showHatchery, setShowHatchery] = useState(false);
   const writesLocked = useRef(false);
 
   const todayStr = toDateStr(new Date());
@@ -142,23 +148,26 @@ export default function Ledger() {
       let p = [];
       let allDays = {};
       let shopping = emptyGroceries();
+      let hatchery = emptyGame();
       let rateLimited = false;
 
-      // Fetch the five core keys together. On a healthy load this is one quick round-trip
+      // Fetch the six core keys together. On a healthy load this is one quick round-trip
       // with no artificial pauses; the retry/backoff only engages if a read actually fails.
-      const [gr, rr, pr, dr, sr] = await Promise.all([
+      const [gr, rr, pr, dr, sr, hr] = await Promise.all([
         readKey('goals'),
         readKey('recurring-tasks'),
         readKey('presets'),
         readKey('all-days'),
         readKey('groceries'),
+        readKey('game'),
       ]);
-      if ([gr, rr, pr, dr, sr].some((x) => x.rateLimited)) rateLimited = true;
+      if ([gr, rr, pr, dr, sr, hr].some((x) => x.rateLimited)) rateLimited = true;
       if (gr.res && gr.res.value) { try { g = JSON.parse(gr.res.value); } catch (e) {} }
       if (rr.res && rr.res.value) { try { r = JSON.parse(rr.res.value); } catch (e) {} }
       if (pr.res && pr.res.value) { try { p = JSON.parse(pr.res.value); } catch (e) {} }
       if (dr.res && dr.res.value) { try { allDays = JSON.parse(dr.res.value); } catch (e) {} }
       if (sr.res && sr.res.value) { try { shopping = normalizeGroceries(JSON.parse(sr.res.value)); } catch (e) {} }
+      if (hr.res && hr.res.value) { try { hatchery = normalizeGame(JSON.parse(hr.res.value)); } catch (e) {} }
 
       // A mirror left behind by the previous session means that key's last write never
       // reached the server — the app was closed or offline before it went out. Prefer it
@@ -172,8 +181,10 @@ export default function Ledger() {
       };
       const replayDays = takeUnflushed('all-days', dr.res && dr.res.value, (v) => v);
       const replayShopping = takeUnflushed('groceries', sr.res && sr.res.value, normalizeGroceries);
+      const replayGame = takeUnflushed('game', hr.res && hr.res.value, normalizeGame);
       if (replayDays) allDays = replayDays;
       if (replayShopping) shopping = replayShopping;
+      if (replayGame) hatchery = replayGame;
 
       // Show the loaded data immediately — don't make the user wait on migration.
       setGoals(g);
@@ -181,8 +192,10 @@ export default function Ledger() {
       setPresets(p);
       setDays(allDays);
       setGroceries(shopping);
+      setGame(hatchery);
       daysBlob.adopt(allDays);
       groceryBlob.adopt(shopping);
+      gameBlob.adopt(hatchery);
       setLoading(false);
 
       if (rateLimited) {
@@ -256,6 +269,7 @@ export default function Ledger() {
   // to survive the app being closed mid-write. See useDurableBlob for why that matters.
   const daysBlob = useDurableBlob({ storageKey: 'all-days', label: 'error.label.days', persist, locked: writesLocked });
   const groceryBlob = useDurableBlob({ storageKey: 'groceries', label: 'error.label.groceries', persist, locked: writesLocked });
+  const gameBlob = useDurableBlob({ storageKey: 'game', label: 'error.label.game', persist, locked: writesLocked });
 
   const saveDay = (dateStr, next) => {
     const updated = { ...daysBlob.peek(), [dateStr]: next };
@@ -359,6 +373,37 @@ export default function Ledger() {
   };
 
   const streak = useMemo(() => computeStreak(days, todayStr), [days, todayStr]);
+
+  // Stars are earned from the task log and never written back to it: the hatchery
+  // reads `days`, so the report and the streak cannot be moved by anything in it.
+  const completedTotal = useMemo(() => totalCompleted(days), [days]);
+  const saveGame = (next) => { setGame(next); gameBlob.save(next); };
+  // Settling turns a hatched egg into a creature and releases a grown one. It runs
+  // where the counts are read rather than on a tick, so it is also correct after a
+  // reload, or on another device that has been counting all along.
+  const gameNow = useMemo(() => settle(game, completedTotal), [game, completedTotal]);
+  // settle returns the same object when there is nothing to do, so this only writes on
+  // a real transition — a hatch, or a grown creature releasing the slot.
+  useEffect(() => { if (gameNow !== game) saveGame(gameNow); }, [gameNow, game]);
+
+  // The baseline is written once, the first time the hatchery sees this account: until
+  // it exists there is nothing to earn above, which is how stars start at zero without
+  // a migration. Gated on `loading` so it is set from the real history, not from the
+  // empty blob the app holds before the first read returns.
+  useEffect(() => {
+    if (loading) return;
+    if (Number.isFinite(gameNow.baseline)) return;
+    saveGame({ ...gameNow, baseline: completedTotal });
+  }, [loading, gameNow, completedTotal]);
+
+  // The app's face: whatever is being raised, else the most advanced thing owned,
+  // else an unopened egg — so a new account sees an egg and a reason to open the store.
+  const faceSprite = (() => {
+    const active = activeEntry(gameNow);
+    if (active && active.species) return spriteFor(active.species, stageOf(liveProgress(active, gameNow, completedTotal)));
+    const best = collection(gameNow, completedTotal).find((r) => r.species);
+    return best ? spriteFor(best.species, best.stage) : MYSTERY_EGG;
+  })();
 
   // A goal is auto-marked done when it has no active repeating tasks and every
   // Nothing outstanding under this goal: no repeating task still running, and every
@@ -772,8 +817,9 @@ export default function Ledger() {
     ? (activeGoalFilter === NO_GOAL_ID ? t('common.others') : (goalById(activeGoalFilter) || {}).name)
     : null;
 
-  // The mascot in the header reflects the day: asleep with nothing to do, pleased
-  // once everything is ticked off.
+  // Still drives the little bounce on the header sprite when the day is finished.
+  // The sprite itself no longer changes expression — its growth stage says more about
+  // how you are doing than a face could.
   const dayMood = tasks.length === 0 ? 'sleepy' : doneCount === tasks.length ? 'cheer' : 'idle';
 
   // Per-goal counts for the pills, always from the unfiltered day so every pill
@@ -821,7 +867,7 @@ export default function Ledger() {
   if (loading) {
     return (
       <div className="dt-loading">
-        <Mascot size={56} mood="idle" label={t(ariaKey)} />
+        <Pixel sprite={faceSprite} size={56} label={t('game.faceAria')} />
         <div>{t('auth.loading')}</div>
       </div>
     );
@@ -841,7 +887,7 @@ export default function Ledger() {
           <div className="dt-topbar">
             <div className="dt-brand">
               <div className={`dt-header-mascot ${dayMood === 'cheer' ? 'cheer' : ''}`}>
-                <Mascot size={38} mood={dayMood} label={t(ariaKey)} />
+                <Pixel sprite={faceSprite} size={38} label={t('game.faceAria')} />
               </div>
               <div>
                 <div className="dt-wordmark">{t('app.name')}</div>
@@ -851,6 +897,9 @@ export default function Ledger() {
             <div className="dt-topbar-actions">
               {/* The badge is the whole point of putting this in the header rather than
                   inside Manage: you can see there's shopping to do without opening it. */}
+              <button className="dt-hatch-btn" title={t('game.title')} onClick={() => setShowHatchery(true)}>
+                <Egg size={20} />
+              </button>
               <button className="dt-report-btn" title={t('report.title')} onClick={() => setShowReport(true)}>
                 <BarChart3 size={20} />
               </button>
@@ -960,7 +1009,7 @@ export default function Ledger() {
           {tasks.length === 0 && (
             <div className="dt-empty-state">
               <div className="dt-empty-mascot">
-                <Mascot size={76} mood="sleepy" label={t(ariaKey)} />
+                <Pixel sprite={faceSprite} size={76} label={t('game.faceAria')} />
               </div>
               <div className="headline">{t('task.emptyHeadline')}</div>
               <div>{t('task.emptyBody', { date: dateHeadline })}</div>
@@ -1313,6 +1362,18 @@ export default function Ledger() {
         </div>
       )}
 
+      {showHatchery && (
+        <HatcheryPanel
+          game={gameNow}
+          total={completedTotal}
+          onBuy={() => { const next = buyEgg(gameNow, completedTotal, genId()); if (next) saveGame(next); }}
+          onOpen={(id) => { const next = openEgg(gameNow, id, Math.floor(Math.random() * 100000)); if (next) saveGame(next); }}
+          onStart={(id) => { const next = startIncubating(gameNow, id, completedTotal); if (next) saveGame(next); }}
+          onStop={() => saveGame(bankActive(gameNow, completedTotal))}
+          onClose={() => setShowHatchery(false)}
+        />
+      )}
+
       {showReport && (
         <ReportPanel
           /* getTasksForDate is the single source of "was this task live that day" —
@@ -1515,27 +1576,6 @@ export default function Ledger() {
                     })}
                   </div>
 
-                  {/* Independent of the palette: any character works with any colours. */}
-                  <div className="dt-subfield-label" style={{ marginTop: 18 }}>{t('manage.mascot')}</div>
-                  <div className="dt-mascot-grid">
-                    {mascots.map((m) => {
-                      const MascotArt = m.Mascot;
-                      const active = m.id === mascotId;
-                      return (
-                        <button
-                          key={m.id}
-                          className={`dt-mascot-card ${active ? 'active' : ''}`}
-                          onClick={() => setMascotId(m.id)}
-                        >
-                          <MascotArt size={40} mood={active ? 'cheer' : 'idle'} label={t(m.ariaKey)} />
-                          <div className="dt-mascot-name">
-                            {t(m.nameKey)}
-                            {active && <Check size={12} strokeWidth={3} />}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
                 </div>
 
                 <div className="dt-manage-section">

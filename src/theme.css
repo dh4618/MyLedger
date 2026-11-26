@@ -215,7 +215,7 @@ button,
 .dt-goal-option,
 .dt-cal-cell,
 .dt-theme-card,
-.dt-mascot-card {
+.dt-creature-card {
   touch-action: manipulation;
 }
 
@@ -379,9 +379,11 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
    would make "the settings button" ambiguous to anything selecting for it. */
 .dt-settings-btn,
 .dt-report-btn,
+.dt-hatch-btn,
 .dt-cart-btn { background: none; border: none; color: var(--muted); cursor: pointer; padding: 6px; display: flex; }
 .dt-settings-btn:hover,
 .dt-report-btn:hover,
+.dt-hatch-btn:hover,
 .dt-cart-btn:hover { color: var(--ink); }
 .dt-topbar-actions { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 /* The count of things still to buy, so the header answers "is there shopping?" without
@@ -857,6 +859,72 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 .dt-notdone-chip { font-size: 11px; color: var(--accent); background: var(--muted-soft); padding: 2px 6px; border-radius: 4px; }
 .dt-empty-manage { font-size: 13px; color: var(--muted); padding: 20px 0; text-align: center; }
 
+/* ---- Hatchery ---- */
+/* Sprites keep their own palette: they are drawn artwork, and recolouring them per
+   theme would wreck them. Each carries its own outline, so they read on every one. */
+.dt-pixel { display: block; image-rendering: pixelated; flex-shrink: 0; }
+
+.dt-stars { display: flex; align-items: baseline; gap: 8px; color: var(--accent); }
+.dt-stars svg { align-self: center; flex-shrink: 0; }
+.dt-stars-count { font-family: var(--font-display); font-weight: var(--display-weight); letter-spacing: var(--display-tracking); font-size: 26px; }
+.dt-stars-label { font-size: 12px; color: var(--muted); }
+
+.dt-raise-card,
+.dt-shop-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+.dt-raise-body, .dt-shop-body { flex: 1; min-width: 0; }
+.dt-raise-name { font-size: 15px; font-weight: 600; }
+.dt-raise-stage { font-size: 12px; color: var(--accent); margin-top: 1px; }
+.dt-raise-track { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 8px; }
+.dt-raise-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s ease; }
+.dt-raise-meta { font-size: 12px; color: var(--muted); margin-top: 5px; }
+
+/* The unopened egg reads as unknown rather than as one of the four. */
+.dt-mystery { opacity: 0.75; filter: grayscale(0.55); }
+.dt-buy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+  padding: 8px 12px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.dt-buy-btn:disabled { opacity: 0.4; cursor: default; }
+
+.dt-collection { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.dt-creature-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 12px 8px;
+  border: 2px solid transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  text-align: center;
+}
+.dt-creature-card.active { border-color: var(--accent); box-shadow: none; }
+.dt-creature-name { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.dt-creature-stage { font-size: 11px; color: var(--muted); }
+.dt-creature-card .dt-preset-btn { width: 100%; flex: none; margin-top: 2px; }
+.dt-creature-flag { font-size: 11px; color: var(--accent); font-weight: 600; margin-top: 4px; }
+.dt-creature-flag.done { color: var(--muted); }
+
 /* ---- Streak ---- */
 /* A day counts if you ticked anything, so this reads as encouragement rather than a
    grade — and it stays gold in both states instead of turning a colour that means
@@ -984,8 +1052,7 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 
 /* ---- Colour theme picker: a 2x2 of cards, each painting itself ---- */
 .dt-theme-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-.dt-theme-card,
-.dt-mascot-card {
+.dt-theme-card {
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -1002,12 +1069,9 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
   color: var(--ink);
   transition: border-color 0.15s, transform 0.2s var(--ease-bounce);
 }
-.dt-theme-card:active,
-.dt-mascot-card:active { transform: scale(0.97); }
-.dt-theme-card.active,
-.dt-mascot-card.active { border-color: var(--accent); box-shadow: none; }
-.dt-theme-name,
-.dt-mascot-name {
+.dt-theme-card:active { transform: scale(0.97); }
+.dt-theme-card.active { border-color: var(--accent); box-shadow: none; }
+.dt-theme-name {
   font-size: 13px;
   font-weight: 600;
   display: flex;
@@ -1017,8 +1081,7 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 }
 /* The tick sits on the card, which is in the *current* palette, so it takes the
    current accent — not the previewed one. */
-.dt-theme-name svg,
-.dt-mascot-name svg { color: var(--accent); flex-shrink: 0; }
+.dt-theme-name svg { color: var(--accent); flex-shrink: 0; }
 
 /* The card carries data-theme itself, so everything inside resolves against that
    palette's tokens. --bg here is the previewed theme's background, not the page's. */
@@ -1057,10 +1120,6 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 .dt-theme-goals { display: flex; gap: 4px; }
 .dt-theme-goal-dot { width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0; }
 
-/* ---- Mascot picker: independent of the colours ---- */
-.dt-mascot-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-.dt-mascot-card { align-items: center; }
-.dt-mascot-card .dt-mascot-name { font-size: 12px; width: 100%; }
 
 /* Goal icon picker */
 .dt-icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }

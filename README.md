@@ -199,25 +199,16 @@ drops its negative tracking (full-width characters are already tightly fitted).
 
 ---
 
-## Themes and mascots
+## Themes
 
-**Manage → Appearance** holds two **independent** settings, saved to your account so a new
-device picks them up after signing in.
-
-**Colours** — four palettes: **Rosé Pine Dawn** (soft pinks and lilac, the default),
+**Manage → Appearance** picks one of four palettes, saved to your account so a new device
+picks it up after signing in: **Rosé Pine Dawn** (soft pinks and lilac, the default),
 **Wa-iro** (traditional Japanese colours), **Dracula** (dark, neon accents) and **Swiss**
 (black, white and one red).
 
-**Mascot** — six characters: Sprout, Mochi, Ember, Pixel, Cloudy and Luna. They are original
-artwork, drawn as inline SVG in `src/themes.jsx` — no image requests — and each reacts to
-your day (asleep with nothing to do, pleased once everything is ticked off).
-
-These used to be one setting, so picking Luna's colours meant accepting Luna and liking
-Mochi meant living with pink. Any mascot now works with any palette. A saved value from
-before the split is a mascot name rather than a palette id, so it fails the palette's
-validator and falls back to the default — while the mascot picker reads that same old value
-as a *fallback for the mascot*, which is what keeps your character instead of resetting
-everyone to Sprout.
+Appearance used to hold a second setting for the mascot. The hatchery replaced *choosing* a
+character with *earning* one, so that picker is gone and the six SVG characters along with
+it — see **Hatchery** below.
 
 ### Tokens
 
@@ -258,6 +249,51 @@ Adding a palette takes three edits:
 
 The picker's preview cards carry `data-theme` on themselves, so each paints straight from
 `theme.css` rather than repeating the hex in JavaScript.
+
+---
+
+## Hatchery
+
+The **egg** in the header. Completing a task earns a **star**; ten stars buy a **mystery
+egg**; opening it reveals one of four creatures — Fox, Frog, Tabby Cat or Inky — and you
+raise it by carrying on with your day. **5 tasks** hatch it, **10 more** reach young adult,
+**15 more** reach adult: thirty for a full-grown creature, each stage asking more than the
+last.
+
+Whatever you are raising is the app's face, in the header, the loading screen and the empty
+state. With nothing hatched yet you get an unopened egg, which is also what the signed-out
+auth screen shows.
+
+**Stars are derived, never banked.** `earned = (tasks completed ever) − baseline`, where the
+baseline is the completed-task count captured once, the first time the hatchery runs. That
+is how stars start at zero without a migration, and it means unticking a task takes its star
+back — the balance is a view of the log, not a parallel ledger that can disagree with it.
+
+Counting uses `completed[id] === true`, not key presence. Unticking writes `false` rather
+than deleting, so counting keys would pay you for work you undid — the same trap the streak
+hit.
+
+**One slot.** Eggs you own sit dormant until you choose one, and while something is in the
+slot nothing else may enter. The slot holds a growing creature too, not only an egg, or
+"one at a time" would quietly stop applying the moment something hatched. Putting something
+down banks its progress; picking it back up resumes from there, so a swap can neither
+double-count a task nor lose one.
+
+**Nothing here can tick a task.** The hatchery reads the log and never writes to it, so the
+report and the streak stay true no matter what happens in the game. There is a test that
+runs a month of game actions and asserts the `days` blob comes out byte-identical.
+
+### The art
+
+`src/pixels.js` holds all sixteen sprites as a palette plus one string per row — a few KB,
+no image requests, crisp at any size through `<Pixel>`, and a future Aseprite redraw
+replaces that one file. They keep their own palettes rather than being recoloured per theme:
+they are drawn artwork, and each carries its own outline, so they read on every palette.
+
+If you ever regenerate them from a sheet: **do not decide transparency by colour.** The
+frog's eyes, the cat's muzzle and Inky's page are white *paint*, and a colour test reads
+them as holes — invisible on a light background, obvious on Dracula. Flood-fill from outside
+each sprite instead, so only white the fill can reach counts as background.
 
 ---
 

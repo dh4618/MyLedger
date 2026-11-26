@@ -1,23 +1,18 @@
 import React, { createContext, useContext } from 'react';
-import {
-  COLOR_THEMES, THEME_IDS, DEFAULT_THEME_ID, getColorTheme,
-  MASCOTS, MASCOT_IDS, DEFAULT_MASCOT_ID, getMascot,
-} from './themes';
+import { COLOR_THEMES, THEME_IDS, DEFAULT_THEME_ID, getColorTheme } from './themes';
 import { usePersistedPreference } from './usePersistedPreference';
 
-// Two independent settings. They used to be one — a single `theme` choice carried
-// both a character and a palette — so this provider now reads two keys.
+// The palette, and only the palette. Mascots were a second setting here until the
+// hatchery replaced picking a character with earning one — the app's face now comes
+// from whatever you are raising, which lives in the `game` blob, not in a preference.
 //
-// Must match the keys used by the pre-React script in index.html.
+// Must match the key used by the pre-React script in index.html.
 const THEME_LOCAL_KEY = 'ledger-theme';
 const THEME_KV_KEY = 'theme';
-const MASCOT_LOCAL_KEY = 'ledger-mascot';
-const MASCOT_KV_KEY = 'mascot';
 
 const ThemeContext = createContext(null);
 
 const isValidTheme = (id) => typeof id === 'string' && THEME_IDS.includes(id);
-const isValidMascot = (id) => typeof id === 'string' && MASCOT_IDS.includes(id);
 
 // Sets a <meta> by name, creating it if the document doesn't have one yet.
 function setMeta(name, content) {
@@ -57,20 +52,6 @@ function applyTheme(id) {
 // Whatever index.html already applied — agreeing with it avoids a re-paint.
 const readAppliedTheme = () => document.documentElement.dataset.theme;
 
-// The mascot used to be implied by the theme, so before this setting existed a
-// user who chose Mochi has `ledger-theme: 'mochi'` and no mascot key at all.
-// Reading the old value here keeps their character instead of resetting everyone
-// to Sprout. It is only ever a *fallback*: once a mascot is saved, this never
-// runs again, and a theme id that isn't a mascot name (every new palette) fails
-// isValidMascot and falls through to the default.
-const readMascotFromLegacyTheme = () => {
-  try {
-    return window.localStorage.getItem(THEME_LOCAL_KEY);
-  } catch (e) {
-    return null; // Storage disabled (private browsing); the default is fine.
-  }
-};
-
 export function ThemeProvider({ children }) {
   const [themeId, setThemeId] = usePersistedPreference({
     localKey: THEME_LOCAL_KEY,
@@ -81,28 +62,10 @@ export function ThemeProvider({ children }) {
     apply: applyTheme,
   });
 
-  const [mascotId, setMascotId] = usePersistedPreference({
-    localKey: MASCOT_LOCAL_KEY,
-    kvKey: MASCOT_KV_KEY,
-    isValid: isValidMascot,
-    fallback: DEFAULT_MASCOT_ID,
-    readInitial: readMascotFromLegacyTheme,
-  });
-
   const theme = getColorTheme(themeId);
-  const mascot = getMascot(mascotId);
 
   return (
-    <ThemeContext.Provider
-      value={{
-        theme, themeId, setThemeId, themes: COLOR_THEMES,
-        mascot, mascotId, setMascotId, mascots: MASCOTS,
-        // The mascot component and its aria label, which is what nearly every
-        // caller actually wants — `theme.Mascot` before the split.
-        Mascot: mascot.Mascot,
-        ariaKey: mascot.ariaKey,
-      }}
-    >
+    <ThemeContext.Provider value={{ theme, themeId, setThemeId, themes: COLOR_THEMES }}>
       {children}
     </ThemeContext.Provider>
   );

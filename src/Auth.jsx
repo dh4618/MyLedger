@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from './supabase';
-import { useTheme } from './ThemeProvider';
 import { useLang } from './i18n/LanguageProvider';
+import Pixel from './Pixel';
+import { MYSTERY_EGG } from './pixels';
 
 // Remembering the address means a returning device only ever has to tap once.
 const EMAIL_KEY = 'ledger-email';
@@ -19,7 +20,6 @@ const EMAIL_KEY = 'ledger-email';
 // The emailed link is kept as the recovery path: it's how you get in if you
 // forget the password, and how you sign in the first time before one is set.
 export default function Auth({ children }) {
-  const { Mascot, ariaKey } = useTheme();
   const { t } = useLang();
   const [session, setSession] = useState(null);
   const [checking, setChecking] = useState(true);
@@ -132,7 +132,7 @@ export default function Auth({ children }) {
   if (checking) {
     return (
       <div className="dt-loading">
-        <Mascot size={56} mood="idle" label={t(ariaKey)} />
+        <Pixel sprite={MYSTERY_EGG} size={56} label={t('game.mysteryEgg')} />
         <div>{t('auth.justAMoment')}</div>
       </div>
     );
@@ -144,7 +144,7 @@ export default function Auth({ children }) {
     <div className="dt-auth-wrap">
       <div className="dt-auth-card">
         <div className="dt-auth-mascot">
-          <Mascot size={64} mood={mode === 'password' ? 'idle' : 'sleepy'} label={t(ariaKey)} />
+          <Pixel sprite={MYSTERY_EGG} size={64} label={t('game.mysteryEgg')} />
         </div>
         <h1 className="dt-auth-title">{t('app.name')}</h1>
 
