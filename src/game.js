@@ -8,10 +8,17 @@ import { SPECIES_IDS } from './pixels.js';
 
 export const EGG_PRICE = 10;
 
-// 5 tasks to hatch, 10 more to young adult, 15 more to adult: 30 for a full creature.
-// Each stage asks for more than the last, so later growth is actually earned.
-export const STAGE_STEPS = [5, 10, 15];
-export const STAGE_AT = [0, 5, 15, 30];            // cumulative progress per stage
+// What each stage costs: to hatch, then to young adult, then to adult.
+//
+// TESTING VALUE. The real pacing is [5, 10, 15] — 30 tasks for a full creature, each
+// stage asking more than the last so later growth is actually earned. This is turned
+// down to walk the whole loop in a few taps; put it back before shipping for real.
+export const STAGE_STEPS = [1, 1, 1];
+
+// Cumulative, derived rather than written out a second time: these two used to be
+// separate hand-written lists, so changing the pacing in one left the other quietly
+// disagreeing about where a stage begins.
+export const STAGE_AT = STAGE_STEPS.reduce((acc, step) => [...acc, acc[acc.length - 1] + step], [0]);
 const STAGE_NAMES = ['egg', 'kid', 'young', 'adult'];
 
 export const emptyGame = () => ({
@@ -23,6 +30,10 @@ export const emptyGame = () => ({
   creatures: [],  // { id, species, progress }
   activeId: null, // the one egg or creature receiving task progress
   activeFrom: 0,  // the completed-task count when it entered the slot
+  // The picture pinned as the app's icon: { species, stage }, or null to follow
+  // whatever is being raised. The only genuinely new state the album needs — which
+  // pictures you own is implied by how far your creatures have got.
+  icon: null,
 });
 
 export function normalizeGame(raw) {
@@ -162,4 +173,70 @@ export function collection(game, total) {
   ];
   rows.forEach((r) => { r.stage = r.species ? stageOf(r.live) : 'egg'; });
   return rows.sort((a, b) => b.live - a.live);
+}
+
+// ---- the album ----
+
+// Every picture you have collected, grouped by species.
+//
+// It needs no stored state of its own: progress only ever goes up, so the stages a
+// creature has passed through are implied by where it is now. A young adult fox has
+// been an egg and a kid; an opened egg that hasn't hatched yet is just an egg; an
+// unopened one contributes nothing, because you don't know what it is.
+//
+// Two creatures of the same species contribute to the same row rather than appearing
+// twice — a picture is a picture, however many of that animal you have raised.
+export function album(game, total) {
+  const g = normalizeGame(game);
+  const bySpecies = new Map();
+  collection(g, total).forEach((row) => {
+    if (!row.species) return;
+    const reached = STAGE_NAMES.indexOf(row.stage);
+    if (reached < 0) return;
+    const seen = bySpecies.get(row.species) || new Set();
+    for (let i = 0; i <= reached; i += 1) seen.add(STAGE_NAMES[i]);
+    bySpecies.set(row.species, seen);
+  });
+  // Species in sprite-sheet order, stages in growth order, so the album reads the same
+  // way every time rather than reshuffling as creatures overtake one another.
+  return SPECIES_IDS
+    .filter((species) => bySpecies.has(species))
+    .map((species) => ({
+      species,
+      stages: STAGE_NAMES.filter((stage) => bySpecies.get(species).has(stage)),
+    }));
+}
+
+export const hasPicture = (game, total, species, stage) =>
+  album(game, total).some((row) => row.species === species && row.stages.includes(stage));
+
+// Pinning is an override, so it needs an undo: without one, the automatic behaviour
+// becomes unreachable the moment you pin for the first time.
+export function pinIcon(game, total, species, stage) {
+  const g = normalizeGame(game);
+  if (!hasPicture(g, total, species, stage)) return null;
+  return { ...g, icon: { species, stage } };
+}
+
+export const clearIcon = (game) => ({ ...normalizeGame(game), icon: null });
+
+export const isPinned = (game, species, stage) => {
+  const icon = normalizeGame(game).icon;
+  return !!icon && icon.species === species && icon.stage === stage;
+};
+
+// What the app draws as its face, in order: the picture you pinned, else whatever you
+// are raising, else your most advanced creature, else nothing — the caller falls back
+// to the generic egg.
+//
+// The pin is checked against the album rather than trusted: a pin naming a picture you
+// do not own falls through instead of putting a creature you never raised in the
+// header. Nothing in the app can produce that today, but a hand-edited blob can.
+export function iconFor(game, total) {
+  const g = normalizeGame(game);
+  if (g.icon && hasPicture(g, total, g.icon.species, g.icon.stage)) return g.icon;
+  const active = activeEntry(g);
+  if (active && active.species) return { species: active.species, stage: stageOf(liveProgress(active, g, total)) };
+  const best = collection(g, total).find((r) => r.species);
+  return best ? { species: best.species, stage: best.stage } : null;
 }

@@ -905,6 +905,34 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 }
 .dt-buy-btn:disabled { opacity: 0.4; cursor: default; }
 
+/* The album: one row per species, a thumbnail per stage reached. Only pictures you
+   actually have are shown, so the grid grows with you rather than starting as a wall
+   of empty slots. */
+.dt-album-row { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.dt-album-row:last-child { border-bottom: none; }
+.dt-album-species { font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
+.dt-album-stages { display: flex; flex-wrap: wrap; gap: 8px; }
+.dt-album-shot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 6px;
+  /* 2px always, transparent until pinned, so ringing one doesn't shift the row. */
+  border: 2px solid transparent;
+  box-shadow: inset 0 0 0 1px var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  cursor: pointer;
+  font-family: var(--font-ui);
+  color: var(--ink);
+  touch-action: manipulation;
+}
+.dt-album-shot:active { transform: scale(0.95); }
+.dt-album-shot.pinned { border-color: var(--accent); box-shadow: none; }
+.dt-album-stage { font-size: 10px; color: var(--muted); }
+.dt-album-shot.pinned .dt-album-stage { color: var(--accent); font-weight: 600; }
+
 .dt-collection { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .dt-creature-card {
   display: flex;
