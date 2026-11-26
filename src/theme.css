@@ -55,6 +55,9 @@
      the tracking and weight that family needs to read right at heading sizes. */
   --display-tracking: normal;
   --display-weight: 600;
+  /* The bottom tab bar's height, shared by everything that has to clear it: the day
+     body's padding and the FAB's offset. */
+  --tabbar-h: 56px;
   --radius-sm: 8px;
   --radius: 12px;
   --radius-lg: 18px;
@@ -343,8 +346,10 @@ button,
   min-height: 100dvh;
   background: var(--bg);
   position: relative;
-  /* Clears the FAB, plus the home indicator on a notched iPhone. */
-  padding-bottom: calc(100px + env(safe-area-inset-bottom));
+  /* Clears the tab bar and the FAB stacked above it, plus the home indicator on a
+     notched iPhone. --tabbar-h is the bar's own height, declared once below so this
+     and the FAB's offset can't drift apart from it. */
+  padding-bottom: calc(var(--tabbar-h) + 86px + env(safe-area-inset-bottom));
 }
 .dt-storage-warning {
   background: var(--danger);
@@ -636,14 +641,15 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 .dt-empty-state .headline { font-family: var(--font-display); letter-spacing: var(--display-tracking); font-size: 17px; color: var(--ink); margin-bottom: 4px; }
 .dt-fab {
   position: fixed;
-  /* Lifted clear of the home indicator, which otherwise swallows the tap. */
-  bottom: calc(28px + env(safe-area-inset-bottom));
+  /* Sits above the tab bar, which in turn clears the home indicator. The bar's height
+     is a token so this offset can't drift away from the thing it has to clear. */
+  bottom: calc(var(--tabbar-h) + 14px + env(safe-area-inset-bottom));
   right: calc(50% - 240px + 20px);
   width: 54px;
   height: 54px;
   border-radius: 50%;
   background: var(--accent);
-  color: var(--surface);
+  color: var(--on-accent);
   border: none;
   display: flex;
   align-items: center;
@@ -767,7 +773,9 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
   max-width: 480px;
   background: var(--surface);
   border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
-  padding: 22px 20px calc(28px + env(safe-area-inset-bottom));
+  /* Clears the tab bar, which sits above these sheets so you can switch tabs without
+     closing one first. Without the extra padding the last rows hide behind it. */
+  padding: 22px 20px calc(var(--tabbar-h) + 28px + env(safe-area-inset-bottom));
   max-height: 85vh; /* fallback for browsers without dvh */
   max-height: 85dvh;
   overflow-y: auto;
@@ -904,6 +912,91 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
   cursor: pointer;
 }
 .dt-buy-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ---- Bottom tab bar ---- */
+/* Settings is not here: it's the one you open least, so it stays as a header gear and
+   these four get the width instead. */
+.dt-tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  height: calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  box-sizing: border-box;
+  display: flex;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  /* Above the panel sheets (50) so a tab is always one tap away, below the modals and
+     the calendar (60) which are meant to block everything until you answer them. */
+  z-index: 55;
+}
+.dt-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  /* The UA gives a bare button its own text colour, which on iOS is link blue. */
+  color: var(--muted);
+  font-family: var(--font-ui);
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.dt-tab.active { color: var(--accent); }
+.dt-tab-icon { position: relative; display: flex; }
+.dt-tab-label { font-size: 10px; font-weight: 600; letter-spacing: 0.01em; }
+
+/* ---- The pet space ---- */
+.dt-habitat {
+  position: relative;
+  height: 180px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.dt-habitat-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 24px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+}
+.dt-resident { position: absolute; }
+/* Hatched creatures wander; an egg keeps its spot, because eggs don't walk. Every
+   number comes from the id-derived seed, so nobody shares a gait and nobody moves
+   when React repaints. */
+.dt-resident.walks { animation-name: dt-wander; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
+.dt-resident.active::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -7px;
+  transform: translateX(-50%);
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+@keyframes dt-wander {
+  0%   { transform: translate(0, 0); }
+  25%  { transform: translate(var(--drift), -5px); }
+  50%  { transform: translate(calc(var(--drift) * 0.4), 4px); }
+  75%  { transform: translate(calc(var(--drift) * -0.7), -3px); }
+  100% { transform: translate(0, 0); }
+}
 
 /* The album: one row per species, a thumbnail per stage reached. Only pictures you
    actually have are shown, so the grid grows with you rather than starting as a wall
@@ -1168,7 +1261,9 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
    Calendar
    =========================================================================== */
 
-.dt-calendar-overlay { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
+/* 60, with the modals: it's a picker you answer or dismiss, so it should cover the tab
+   bar rather than let you wander off mid-choice. */
+.dt-calendar-overlay { position: fixed; inset: 0; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; z-index: 60; }
 .dt-calendar-sheet {
   width: 100%;
   max-width: 480px;

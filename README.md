@@ -199,6 +199,28 @@ drops its negative tracking (full-width characters are already tightly fitted).
 
 ---
 
+## Getting around
+
+A **bottom tab bar**: Day, Pet, Progress, List. **Settings stays as a gear in the header** —
+it's the one you open least, and four wide tabs beat five narrow ones on a phone. The
+groceries badge rides on the List tab, so you still see at a glance that there's shopping
+to do.
+
+The panels are still sheets over the day page rather than separate screens, so **Day means
+"close whatever is open"**, and which tab reads as current follows from which sheet is up —
+there's no second piece of state to fall out of step with it.
+
+Three things have to agree about the bar's height: the page's bottom padding, the FAB's
+offset, and the bar itself. That's `--tabbar-h` in `src/theme.css`, so they can't drift
+apart.
+
+The bar sits at `z-index: 55` — **above the panel sheets (50)** so a tab is always one tap
+away without closing the current one first, and **below the modals and the calendar (60)**,
+which are meant to block everything until you answer them. The sheets pad their bottom by
+`--tabbar-h` so their last rows don't hide behind it.
+
+---
+
 ## Themes
 
 **Manage → Appearance** picks one of four palettes, saved to your account so a new device
@@ -254,9 +276,20 @@ The picker's preview cards carry `data-theme` on themselves, so each paints stra
 
 ## Hatchery
 
-The **egg** in the header. Completing a task earns a **star**; ten stars buy a **mystery
-egg**; opening it reveals one of four creatures — Fox, Frog, Tabby Cat or Inky — and you
-raise it by carrying on with your day.
+The **Pet** tab. Completing a task earns a **star**; ten stars buy a **mystery egg**;
+opening it reveals one of four creatures — Fox, Frog, Tabby Cat or Inky — and you raise it
+by carrying on with your day.
+
+At the top of the tab is a **room**, where everything you have hatched mills about. Only
+hatched creatures walk; an opened egg sits there too, so the room isn't empty while you are
+incubating, and an unopened one stays out of it because you don't know what's in it.
+
+Where each resident stands, how far it roams and how fast all come from a hash of its id,
+so it keeps its spot and its gait across re-renders instead of teleporting on every repaint.
+That hash is an **avalanche mix, not `h * 31 + char`**: `genId()` is a timestamp plus a short
+random suffix, so two creatures bought in the same session differ in a character or two, and
+a weak hash put them within a couple of percent of each other — the room looked like one
+stacked pile.
 
 Pacing is `STAGE_STEPS` in `src/game.js`: **5 tasks** to hatch, **10 more** to young adult,
 **15 more** to adult — thirty for a full-grown creature, each stage asking more than the
@@ -277,21 +310,16 @@ nothing, because you don't know what it is. Two creatures of the same species sh
 Only pictures you have actually collected appear — no locked silhouettes.
 
 Tapping a picture **pins** it as the app's face, in the header, the loading screen and the
-empty state. Tapping the pinned one again clears it. Without that undo, pinning once would
-make the automatic behaviour unreachable.
+empty state. Tapping the pinned one again clears it.
 
-The face resolves in this order:
-
-```
-pinned picture  →  what you're raising  →  most advanced creature  →  generic egg
-```
-
-so nothing changes until you deliberately pin something, and a new account sees an egg — as
-does the signed-out auth screen, which has no account to read a creature from.
+**The face is the pinned picture, or the generic egg.** Nothing else sets it. It used to
+fall back to whatever you were raising, which meant the icon changed under you every time a
+creature grew; now it stays where you put it. A new account sees an egg, as does the
+signed-out auth screen, which has no account to read a creature from.
 
 The pin is **checked against the album** rather than trusted. A pin naming a picture you
-don't own falls through to the automatic chain instead of putting a creature you never
-raised in the header. Nothing in the app can produce that, but a hand-edited blob can.
+don't own gives the generic egg instead of a creature you never raised. Nothing in the app
+can produce that, but a hand-edited blob can.
 
 **Stars are derived, never banked.** `earned = (tasks completed ever) − baseline`, where the
 baseline is the completed-task count captured once, the first time the hatchery runs. That
