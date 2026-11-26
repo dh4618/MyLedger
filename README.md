@@ -324,6 +324,24 @@ The pin is **checked against the album** rather than trusted. A pin naming a pic
 don't own gives the generic egg instead of a creature you never raised. Nothing in the app
 can produce that, but a hand-edited blob can.
 
+### Earning a star
+
+The **star total sits in the header**, so it's there on every tab and a flying star always
+has somewhere to land. Ticking a task launches one from the checkbox, carrying a **+1**, and
+the counter squeezes as it arrives.
+
+**The flight delivers the increment**: the displayed number holds back however many stars
+are still in the air (`balance − flights.length`), so it goes up as each one lands rather
+than jumping before it gets there. It self-corrects — a flight leaves the list when its
+animation ends — and it's clamped at zero so unticking mid-flight can't show a negative.
+
+Stars in flight are `position: fixed` with `pointer-events: none`. Without that, one passing
+over a row would eat the tap, and ticking three things quickly would miss.
+
+**Unticking is quiet**: the count drops with no flight and no −1. It's a correction, not
+something to celebrate. And under `prefers-reduced-motion` no star is launched at all — the
+count still updates, it just arrives without the journey.
+
 **Stars are derived, never banked.** `earned = (tasks completed ever) − baseline`, where the
 baseline is the completed-task count captured once, the first time the hatchery runs. That
 is how stars start at zero without a migration, and it means unticking a task takes its star

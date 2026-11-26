@@ -8,7 +8,7 @@ import Pixel from './Pixel';
 import { emptyGroceries, normalizeGroceries, addItem, toggleItem, removeItem, clearBought } from './groceries';
 import { supabase } from './supabase';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays, Sparkles, ChevronDown, Trophy, RotateCcw, ShoppingCart, BarChart3, Flame, Egg } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays, Sparkles, ChevronDown, Trophy, RotateCcw, ShoppingCart, BarChart3, Flame, Egg, Star } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
 import { useLang } from './i18n/LanguageProvider';
 import ProgressBar from './ProgressBar';
@@ -19,7 +19,7 @@ import { genId } from './ids';
 import { toDateStr, fromDateStr, addDays, startOfWeek, daysInMonth, formatHeadline, formatShortDate, formatMonthYear } from './dates';
 import { computeStreak } from './streak';
 import { spriteFor, MYSTERY_EGG } from './pixels';
-import { emptyGame, normalizeGame, totalCompleted, buyEgg, openEgg, startIncubating, bankActive, settle, iconFor, pinIcon, clearIcon } from './game';
+import { emptyGame, normalizeGame, totalCompleted, stars, buyEgg, openEgg, startIncubating, bankActive, settle, iconFor, pinIcon, clearIcon } from './game';
 
 // Goal colours are no longer stored on the goal: they come from the palette, so
 // they change with the theme instead of being frozen hex from whenever the goal
@@ -402,6 +402,50 @@ export default function Ledger() {
   // of those two modes it is in without re-deriving the rule.
   const face = iconFor(gameNow, completedTotal);
   const faceSprite = face ? spriteFor(face.species, face.stage) : MYSTERY_EGG;
+
+  const starBalance = stars(gameNow, completedTotal).balance;
+
+  // Ticking a task earns a star, and a star flies from the checkbox to the counter so
+  // you can see where it went. Each flight is a transient entry here, cleared when its
+  // animation ends — nothing about it is stored, and it never touches the task log.
+  const starCounterRef = useRef(null);
+  const [flights, setFlights] = useState([]);
+
+  const launchStar = (fromRect) => {
+    const target = starCounterRef.current;
+    if (!fromRect || !target) return;
+    // Honour the same preference the rest of the app does: the count still updates,
+    // it just arrives without the journey.
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const to = target.getBoundingClientRect();
+    const id = genId();
+    setFlights((list) => [...list, {
+      id,
+      x: fromRect.left + fromRect.width / 2,
+      y: fromRect.top + fromRect.height / 2,
+      dx: (to.left + to.width / 2) - (fromRect.left + fromRect.width / 2),
+      dy: (to.top + to.height / 2) - (fromRect.top + fromRect.height / 2),
+    }]);
+  };
+  // A brief squeeze as each star lands, so the number doesn't silently tick over.
+  const [landed, setLanded] = useState(0);
+  const endFlight = (id) => {
+    setFlights((list) => list.filter((f) => f.id !== id));
+    setLanded((n) => n + 1);
+  };
+  useEffect(() => {
+    if (!landed) return undefined;
+    const handle = setTimeout(() => setLanded(0), 420);
+    return () => clearTimeout(handle);
+  }, [landed]);
+
+  // Only a completion flies. Unticking is a correction, and animating an undo would
+  // celebrate the wrong thing — the counter just drops.
+  const toggleFromDay = (dateStr, taskId, fromRect) => {
+    const wasComplete = !!getDay(dateStr).completed[taskId];
+    toggleComplete(dateStr, taskId);
+    if (!wasComplete) launchStar(fromRect);
+  };
 
   // A goal is auto-marked done when it has no active repeating tasks and every
   // Nothing outstanding under this goal: no repeating task still running, and every
@@ -893,6 +937,17 @@ export default function Ledger() {
               </div>
             </div>
             <div className="dt-topbar-actions">
+              {/* In the header rather than on the day page so it is there on every tab,
+                  and so a flying star always has somewhere to land. */}
+              <div ref={starCounterRef} className={`dt-star-count ${landed ? 'landed' : ''}`} title={t('game.starsLabel')}>
+                <Star size={15} />
+                {/* Holds back the stars still in the air, so the number goes up as each
+                    one lands rather than jumping before it arrives — the flight is the
+                    delivery, not a decoration over an increment that already happened.
+                    It self-corrects: a flight leaves `flights` when its animation ends,
+                    and the clamp stops an untick mid-flight showing a negative. */}
+                <span>{Math.max(0, starBalance - flights.length)}</span>
+              </div>
               {/* Day, Pet, Progress and List moved to the bottom bar. Settings stays up
                   here: it's the one you open least, and four wide tabs beat five narrow
                   ones on a phone. */}
@@ -1032,7 +1087,7 @@ export default function Ledger() {
                   menuOpen={openMenuTaskId === task.id}
                   onToggleMenu={() => setOpenMenuTaskId(openMenuTaskId === task.id ? null : task.id)}
                   onCloseMenu={() => setOpenMenuTaskId(null)}
-                  onToggleComplete={() => toggleComplete(selectedDateStr, task.id)}
+                  onToggleComplete={(fromRect) => toggleFromDay(selectedDateStr, task.id, fromRect)}
                   onEdit={() => openEditTask(task, task.carriedFrom ? { dateStr: task.carriedFrom } : {})}
                   onSkipToday={() => skipToday(selectedDateStr, task.id)}
                   onStopRepeating={() => stopRepeating(task.id)}
@@ -1044,6 +1099,21 @@ export default function Ledger() {
         </div>
 
         <button className="dt-fab" onClick={() => openAddTask()}><Plus size={26} /></button>
+
+        {/* Fixed and pointer-events:none, so a star in flight never swallows a tap on
+            the row underneath — you can tick three things in a row without waiting. */}
+        {flights.map((f) => (
+          <div
+            key={f.id}
+            className="dt-star-flight"
+            style={{ left: f.x, top: f.y, '--dx': `${f.dx}px`, '--dy': `${f.dy}px` }}
+            onAnimationEnd={() => endFlight(f.id)}
+            aria-hidden="true"
+          >
+            <Star size={18} />
+            <span className="dt-star-plus">+1</span>
+          </div>
+        ))}
 
         {/* The panels are still sheets over the day page rather than separate screens,
             so "Day" means close whatever is open. Which tab reads as current follows
@@ -1937,14 +2007,19 @@ function GoalDetail({
 }
 
 function TaskRow({ task, goal, completed, hideGoal, t, locale, menuOpen, onToggleMenu, onCloseMenu, onToggleComplete, onEdit, onSkipToday, onStopRepeating, onDelete }) {
+  const boxRef = useRef(null);
+  // The star flies from the checkbox whichever half of the row you tapped — the box is
+  // the thing you just filled in, so it reads as the source wherever the finger landed.
+  const toggle = () => onToggleComplete(boxRef.current ? boxRef.current.getBoundingClientRect() : null);
+
   return (
     <div className="dt-task-row">
       {/* The tick inherits currentColor from .dt-checkbox so it stays legible on
           whatever the theme uses for a filled control. */}
-      <div className={`dt-checkbox ${completed ? 'checked' : ''}`} onClick={onToggleComplete}>
+      <div ref={boxRef} className={`dt-checkbox ${completed ? 'checked' : ''}`} onClick={toggle}>
         {completed && <Check size={13} color="currentColor" strokeWidth={3} />}
       </div>
-      <div className="dt-task-main" onClick={onToggleComplete}>
+      <div className="dt-task-main" onClick={toggle}>
         <div className={`dt-task-name ${completed ? 'done' : ''}`}>{task.name}</div>
         <div className="dt-task-meta">
           {task.time && <span className="dt-time-badge">{task.time}</span>}
