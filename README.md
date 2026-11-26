@@ -5,7 +5,7 @@ Ported off Claude Artifacts to a normal web app: React + Vite frontend, Supabase
 
 The migration off the artifact was a single change: `window.storage` was swapped for
 `src/storage.js`, which exposes the same `get / set / delete / list` interface but talks to
-Postgres. Since then it has grown character themes, a daily progress bar, and a sign-in flow
+Postgres. Since then it has grown colour themes, mascots, a daily progress bar, and a sign-in flow
 built for the iPhone Home Screen — see the sections below.
 
 ---
@@ -144,7 +144,7 @@ Related iOS handling, all in `src/theme.css`:
 
 The status bar is coloured per theme via `theme-color`, with
 `apple-mobile-web-app-status-bar-style` set to `default` on the light themes (dark text)
-and `black` on Luna (light text). Note that iOS reads that second one when it *creates*
+and `black` on Dracula (light text). Note that iOS reads that second one when it *creates*
 the web view, so a theme change reaches the status bar on the next launch, not immediately.
 
 ---
@@ -199,23 +199,65 @@ drops its negative tracking (full-width characters are already tightly fitted).
 
 ---
 
-## Themes
+## Themes and mascots
 
-**Manage → Appearance** picks one of six characters, each with its own palette:
-Sprout (the original green), Mochi, Ember, Pixel, Cloudy, and Luna (dark mode). The choice is
-saved to your account, so a new device picks it up after signing in.
+**Manage → Appearance** holds two **independent** settings, saved to your account so a new
+device picks them up after signing in.
 
-The characters are original artwork, drawn as inline SVG in `src/themes.jsx` — no image
-requests, and each one reacts to your day (asleep with nothing to do, pleased once everything
-is ticked off).
+**Colours** — four palettes: **Rosé Pine Dawn** (soft pinks and lilac, the default),
+**Wa-iro** (traditional Japanese colours), **Dracula** (dark, neon accents) and **Swiss**
+(black, white and one red).
 
-Adding a theme takes two edits:
-1. A `[data-theme="<id>"]` block of palette tokens in `src/theme.css`.
-2. An entry in `THEMES` in `src/themes.jsx` (name, blurb, mascot component, swatches).
+**Mascot** — six characters: Sprout, Mochi, Ember, Pixel, Cloudy and Luna. They are original
+artwork, drawn as inline SVG in `src/themes.jsx` — no image requests — and each reacts to
+your day (asleep with nothing to do, pleased once everything is ticked off).
 
-Then add the id and its background colour to the small map in the inline `<script>` in
-`index.html` — that script applies the saved theme before React boots, which is what stops
-the app flashing the wrong colours on launch.
+These used to be one setting, so picking Luna's colours meant accepting Luna and liking
+Mochi meant living with pink. Any mascot now works with any palette. A saved value from
+before the split is a mascot name rather than a palette id, so it fails the palette's
+validator and falls back to the default — while the mascot picker reads that same old value
+as a *fallback for the mascot*, which is what keeps your character instead of resetting
+everyone to Sprout.
+
+### Tokens
+
+Every colour in the app resolves through one of these, set per palette on
+`[data-theme="<id>"]`. No component carries a literal colour.
+
+| Token | Use |
+|---|---|
+| `--bg` | Page background |
+| `--surface` | Cards, sheets, inputs, chips |
+| `--ink` | Main text; also the selected-day pill background |
+| `--muted` | Secondary text, labels, empty checkbox borders |
+| `--line` | Dividers, borders, progress track |
+| `--accent` | Primary buttons, FAB, selected chip, progress fill, ticks |
+| `--on-accent` | Text and icons on top of `--accent` |
+| `--danger` | Overdue label and text |
+| `--goal-1` … `--goal-5` | Goal colours, by position |
+
+`--accent-soft`, `--danger-soft`, `--on-goal` and friends are derived once with
+`color-mix()` from whichever palette is in force, so a palette never states them.
+
+**Goal colours are no longer stored on the goal.** They come from the palette by the goal's
+*position* in the list, so they change with the theme instead of being frozen hex from
+whenever the goal was created; a sixth goal wraps back to the first slot. Tapping a goal's
+badge still cycles it, which writes a `colorSlot` override. The old `color` field on existing
+goals is simply ignored.
+
+Swiss is the one palette that also swaps `--font-display`: the serif reads as editorial
+rather than International Style, so it takes a grotesque with `--display-tracking` and
+`--display-weight` to match.
+
+Adding a palette takes three edits:
+1. A `[data-theme="<id>"]` block of tokens in `src/theme.css`.
+2. An entry in `COLOR_THEMES` in `src/themes.jsx` (name key, `themeColor`, `statusBar`).
+3. The id and its background in the small map in the inline `<script>` in `index.html` —
+   that script applies the saved theme before React boots, which is what stops the app
+   flashing the wrong colours on launch.
+
+The picker's preview cards carry `data-theme` on themselves, so each paints straight from
+`theme.css` rather than repeating the hex in JavaScript.
 
 ---
 

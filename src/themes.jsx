@@ -221,86 +221,53 @@ export function LunaMascot({ size = 64, mood = 'idle', label }) {
 }
 
 // ---------------------------------------------------------------------------
-// Themes.
+// Mascots and colour themes — two independent settings.
+//
+// They used to be one. A single `theme` choice carried both a character and a
+// palette, so picking Luna's colours meant accepting Luna, and liking Mochi meant
+// living with pink. Splitting them means any mascot works with any palette, which
+// is what you'd expect of both.
 //
 // The authoritative palettes live in theme.css as `[data-theme="<id>"]` blocks —
 // they have to be plain CSS so index.html can apply the saved theme before React
-// boots and avoid a flash of the wrong colours. What lives here is everything
-// JavaScript needs: the character, the three swatches drawn on the picker card,
-// and the colours for the iOS status bar.
+// boots and avoid a flash of the wrong colours. What lives here is only what
+// JavaScript needs: the character components, and per palette the iOS status-bar
+// colours (which are meta tags, not CSS).
 //
-// Display copy is *not* here — nameKey/blurbKey/ariaKey point at entries in
-// src/i18n/strings.js so the character names and descriptions translate along
-// with the rest of the interface.
+// Display copy is *not* here — nameKey/ariaKey point at entries in
+// src/i18n/strings.js so names translate with the rest of the interface.
 // ---------------------------------------------------------------------------
 
-export const THEMES = [
-  {
-    id: 'sprout',
-    nameKey: 'mascot.sprout.name',
-    blurbKey: 'mascot.sprout.blurb',
-    ariaKey: 'mascot.sprout.aria',
-    Mascot: SproutMascot,
-    themeColor: '#EDF0EE',
-    statusBar: 'default',
-    swatches: ['#EDF0EE', '#3F5A44', '#B8862F'],
-  },
-  {
-    id: 'mochi',
-    nameKey: 'mascot.mochi.name',
-    blurbKey: 'mascot.mochi.blurb',
-    ariaKey: 'mascot.mochi.aria',
-    Mascot: MochiMascot,
-    themeColor: '#FDF2F4',
-    statusBar: 'default',
-    swatches: ['#FDF2F4', '#E0729A', '#E8943F'],
-  },
-  {
-    id: 'ember',
-    nameKey: 'mascot.ember.name',
-    blurbKey: 'mascot.ember.blurb',
-    ariaKey: 'mascot.ember.aria',
-    Mascot: EmberMascot,
-    themeColor: '#FBF3EA',
-    statusBar: 'default',
-    swatches: ['#FBF3EA', '#D2691E', '#C9A227'],
-  },
-  {
-    id: 'pixel',
-    nameKey: 'mascot.pixel.name',
-    blurbKey: 'mascot.pixel.blurb',
-    ariaKey: 'mascot.pixel.aria',
-    Mascot: PixelMascot,
-    themeColor: '#F4F1FB',
-    statusBar: 'default',
-    swatches: ['#F4F1FB', '#6D4FD6', '#E08A2E'],
-  },
-  {
-    id: 'cloudy',
-    nameKey: 'mascot.cloudy.name',
-    blurbKey: 'mascot.cloudy.blurb',
-    ariaKey: 'mascot.cloudy.aria',
-    Mascot: CloudyMascot,
-    themeColor: '#EFF5FC',
-    statusBar: 'default',
-    swatches: ['#EFF5FC', '#3B76C4', '#DE9A2C'],
-  },
-  {
-    id: 'luna',
-    nameKey: 'mascot.luna.name',
-    blurbKey: 'mascot.luna.blurb',
-    ariaKey: 'mascot.luna.aria',
-    Mascot: LunaMascot,
-    themeColor: '#171B26',
-    statusBar: 'black',
-    swatches: ['#171B26', '#6EA8C9', '#E4B65C'],
-  },
+export const MASCOTS = [
+  { id: 'sprout', nameKey: 'mascot.sprout.name', blurbKey: 'mascot.sprout.blurb', ariaKey: 'mascot.sprout.aria', Mascot: SproutMascot },
+  { id: 'mochi',  nameKey: 'mascot.mochi.name',  blurbKey: 'mascot.mochi.blurb',  ariaKey: 'mascot.mochi.aria',  Mascot: MochiMascot },
+  { id: 'ember',  nameKey: 'mascot.ember.name',  blurbKey: 'mascot.ember.blurb',  ariaKey: 'mascot.ember.aria',  Mascot: EmberMascot },
+  { id: 'pixel',  nameKey: 'mascot.pixel.name',  blurbKey: 'mascot.pixel.blurb',  ariaKey: 'mascot.pixel.aria',  Mascot: PixelMascot },
+  { id: 'cloudy', nameKey: 'mascot.cloudy.name', blurbKey: 'mascot.cloudy.blurb', ariaKey: 'mascot.cloudy.aria', Mascot: CloudyMascot },
+  { id: 'luna',   nameKey: 'mascot.luna.name',   blurbKey: 'mascot.luna.blurb',   ariaKey: 'mascot.luna.aria',   Mascot: LunaMascot },
 ];
 
-// Sprout carries the original Ledger palette, so an existing user who has never
-// picked a theme sees exactly what they saw before.
-export const DEFAULT_THEME_ID = 'sprout';
+export const MASCOT_IDS = MASCOTS.map((m) => m.id);
+export const DEFAULT_MASCOT_ID = 'sprout';
+export const getMascot = (id) => MASCOTS.find((m) => m.id === id) || MASCOTS[0];
 
-export const THEME_IDS = THEMES.map((t) => t.id);
+// `themeColor` is the palette's --bg, mirrored here because <meta name="theme-color">
+// can only be set from JavaScript. `statusBar` is 'default' for dark status-bar
+// text and 'black' for light, picked so the clock stays legible.
+//
+// Keep this list, the [data-theme] blocks in theme.css, and the map in index.html
+// in step with one another.
+export const COLOR_THEMES = [
+  { id: 'rose-pine-dawn', nameKey: 'theme.rosePineDawn', themeColor: '#FAF4ED', statusBar: 'default' },
+  { id: 'wa-iro',         nameKey: 'theme.waIro',        themeColor: '#F3EEE1', statusBar: 'default' },
+  { id: 'dracula',        nameKey: 'theme.dracula',      themeColor: '#282A36', statusBar: 'black'   },
+  { id: 'swiss',          nameKey: 'theme.swiss',        themeColor: '#FFFFFF', statusBar: 'default' },
+];
 
-export const getTheme = (id) => THEMES.find((t) => t.id === id) || THEMES[0];
+export const THEME_IDS = COLOR_THEMES.map((th) => th.id);
+
+// Anyone whose saved value is one of the six mascot-coupled themes this replaced
+// fails isValid and lands here instead.
+export const DEFAULT_THEME_ID = 'rose-pine-dawn';
+
+export const getColorTheme = (id) => COLOR_THEMES.find((th) => th.id === id) || COLOR_THEMES[0];

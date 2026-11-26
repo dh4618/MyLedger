@@ -17,9 +17,15 @@ import { genId } from './ids';
 import { toDateStr, fromDateStr, addDays, startOfWeek, daysInMonth, formatHeadline, formatShortDate, formatMonthYear } from './dates';
 import { computeStreak } from './streak';
 
-const GOAL_COLORS = ['#3F5A44', '#3E5C76', '#B8862F', '#9C4430', '#6B5B87', '#3F7A6B'];
+// Goal colours are no longer stored on the goal: they come from the palette, so
+// they change with the theme instead of being frozen hex from whenever the goal
+// was created. A goal's slot is its position in the list, which is what makes the
+// first five goals read as goal-1..goal-5; `colorSlot` overrides that once you
+// cycle a goal's colour by hand, and a sixth goal wraps back to the first slot.
+const GOAL_SLOTS = 5;
+const goalColorAt = (slot) => `var(--goal-${(((slot % GOAL_SLOTS) + GOAL_SLOTS) % GOAL_SLOTS) + 1})`;
 const NO_GOAL_ID = '__no_goal__';
-const NO_GOAL_COLOR = '#8A8577';
+const NO_GOAL_COLOR = 'var(--muted)';
 const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
 const WEEKDAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // Monday-first, values match JS Date.getDay()
 
@@ -76,7 +82,7 @@ const summarizeRepeat = (r, t, weekdayAbbr, locale) => {
 };
 
 export default function Ledger() {
-  const { theme, themeId, setThemeId, themes } = useTheme();
+  const { themeId, setThemeId, themes, mascotId, setMascotId, mascots, Mascot, ariaKey } = useTheme();
   const { t, locale, weekdayLetters, weekdayAbbr } = useLang();
   const [loading, setLoading] = useState(true);
   const [goals, setGoals] = useState([]);
@@ -342,6 +348,15 @@ export default function Ledger() {
   }, [days, recurring, carryHomeDay]);
 
   const goalById = (id) => goals.find((g) => g.id === id);
+
+  // Every goal colour in the UI comes through here, so a theme switch recolours
+  // the whole app without touching stored data.
+  const goalColor = (g) => {
+    if (!g || !g.id) return NO_GOAL_COLOR;
+    if (Number.isInteger(g.colorSlot)) return goalColorAt(g.colorSlot);
+    const index = goals.findIndex((x) => x.id === g.id);
+    return goalColorAt(index < 0 ? 0 : index);
+  };
 
   const streak = useMemo(() => computeStreak(days, todayStr), [days, todayStr]);
 
@@ -670,8 +685,7 @@ export default function Ledger() {
 
   const addGoal = () => {
     if (!newGoalName.trim()) return;
-    const color = GOAL_COLORS[goals.length % GOAL_COLORS.length];
-    saveGoals([...goals, { id: genId(), name: newGoalName.trim(), color, kind: newGoalKind, achievedDate: null }]);
+    saveGoals([...goals, { id: genId(), name: newGoalName.trim(), kind: newGoalKind, achievedDate: null }]);
     setNewGoalName('');
     setNewGoalKind('ongoing');
     setShowAddGoalInManage(false);
@@ -687,7 +701,11 @@ export default function Ledger() {
     });
   };
   const cycleGoalColor = (id) => {
-    saveGoals(goals.map((g) => (g.id === id ? { ...g, color: GOAL_COLORS[(GOAL_COLORS.indexOf(g.color) + 1) % GOAL_COLORS.length] } : g)));
+    saveGoals(goals.map((g) => {
+      if (g.id !== id) return g;
+      const current = Number.isInteger(g.colorSlot) ? g.colorSlot : goals.findIndex((x) => x.id === id);
+      return { ...g, colorSlot: (current + 1) % GOAL_SLOTS };
+    }));
   };
   // Tapping the same icon again clears it, so a goal can always go back to being
   // just a coloured dot.
@@ -799,12 +817,11 @@ export default function Ledger() {
     goalDayTaskRows.sort((a, b) => b.dateStr.localeCompare(a.dateStr));
   }
 
-  const Mascot = theme.Mascot;
 
   if (loading) {
     return (
       <div className="dt-loading">
-        <Mascot size={56} mood="idle" label={t(theme.ariaKey)} />
+        <Mascot size={56} mood="idle" label={t(ariaKey)} />
         <div>{t('auth.loading')}</div>
       </div>
     );
@@ -824,7 +841,7 @@ export default function Ledger() {
           <div className="dt-topbar">
             <div className="dt-brand">
               <div className={`dt-header-mascot ${dayMood === 'cheer' ? 'cheer' : ''}`}>
-                <Mascot size={38} mood={dayMood} label={t(theme.ariaKey)} />
+                <Mascot size={38} mood={dayMood} label={t(ariaKey)} />
               </div>
               <div>
                 <div className="dt-wordmark">{t('app.name')}</div>
@@ -862,10 +879,10 @@ export default function Ledger() {
                 >
                   {hasGoalIcon(g.icon) ? (
                     <span className="dt-goal-icon">
-                      <GoalIcon icon={g.icon} size={13} color={active ? 'var(--paper)' : g.color} />
+                      <GoalIcon icon={g.icon} size={13} color={active ? 'var(--bg)' : goalColor(g)} />
                     </span>
                   ) : (
-                    <span className="dt-goal-dot" style={{ background: active ? 'var(--paper)' : g.color }} />
+                    <span className="dt-goal-dot" style={{ background: active ? 'var(--bg)' : goalColor(g) }} />
                   )}
                   {g.name}
                   {count && <span className="dt-goal-count">{count.done}/{count.total}</span>}
@@ -876,7 +893,7 @@ export default function Ledger() {
               className={`dt-goal-pill ${activeGoalFilter === NO_GOAL_ID ? 'active' : ''}`}
               onClick={() => setActiveGoalFilter(activeGoalFilter === NO_GOAL_ID ? null : NO_GOAL_ID)}
             >
-              <span className="dt-goal-dot" style={{ background: activeGoalFilter === NO_GOAL_ID ? 'var(--paper)' : NO_GOAL_COLOR }} />
+              <span className="dt-goal-dot" style={{ background: activeGoalFilter === NO_GOAL_ID ? 'var(--bg)' : NO_GOAL_COLOR }} />
               {t('common.others')}
               {goalProgress[NO_GOAL_ID] && (
                 <span className="dt-goal-count">{goalProgress[NO_GOAL_ID].done}/{goalProgress[NO_GOAL_ID].total}</span>
@@ -943,7 +960,7 @@ export default function Ledger() {
           {tasks.length === 0 && (
             <div className="dt-empty-state">
               <div className="dt-empty-mascot">
-                <Mascot size={76} mood="sleepy" label={t(theme.ariaKey)} />
+                <Mascot size={76} mood="sleepy" label={t(ariaKey)} />
               </div>
               <div className="headline">{t('task.emptyHeadline')}</div>
               <div>{t('task.emptyBody', { date: dateHeadline })}</div>
@@ -955,8 +972,8 @@ export default function Ledger() {
             <div key={section.key}>
               <div className="dt-section-label dt-section-label-row">
                 {section.goal && (hasGoalIcon(section.goal.icon)
-                  ? <GoalIcon icon={section.goal.icon} size={11} color={section.goal.color} />
-                  : <span className="dt-goal-dot" style={{ background: section.goal.color, width: 6, height: 6 }} />)}
+                  ? <GoalIcon icon={section.goal.icon} size={11} color={goalColor(section.goal)} />
+                  : <span className="dt-goal-dot" style={{ background: goalColor(section.goal), width: 6, height: 6 }} />)}
                 {section.key === NO_GOAL_ID && (
                   <span className="dt-goal-dot" style={{ background: NO_GOAL_COLOR, width: 6, height: 6 }} />
                 )}
@@ -1011,7 +1028,7 @@ export default function Ledger() {
               <button className="dt-btn-secondary" onClick={() => setConfirmDialog(null)}>{t('common.cancel')}</button>
               <button
                 className="dt-btn-primary"
-                style={{ background: 'var(--brick)' }}
+                style={{ background: 'var(--danger)' }}
                 onClick={() => { confirmDialog.onConfirm(); setConfirmDialog(null); }}
               >{confirmDialog.confirmLabel || t('common.delete')}</button>
             </div>
@@ -1057,7 +1074,7 @@ export default function Ledger() {
               placeholder={t('backup.pastePlaceholder')}
               style={{ height: 140, marginBottom: 10 }}
             />
-            {importStatus && <div className="dt-hint" style={{ marginTop: 0, color: 'var(--brick)' }}>{importStatus}</div>}
+            {importStatus && <div className="dt-hint" style={{ marginTop: 0, color: 'var(--danger)' }}>{importStatus}</div>}
             <div className="dt-modal-actions">
               <button className="dt-btn-secondary" onClick={() => setShowImportModal(false)}>{t('common.cancel')}</button>
               <button className="dt-btn-primary" onClick={restoreFromBackup}>{t('common.restore')}</button>
@@ -1238,9 +1255,9 @@ export default function Ledger() {
                       onClick={() => setModal({ ...modal, form: { ...modal.form, goalId: g.id } })}
                     >
                       {hasGoalIcon(g.icon) ? (
-                        <GoalIcon icon={g.icon} size={12} color={picked ? 'var(--paper)' : g.color} />
+                        <GoalIcon icon={g.icon} size={12} color={picked ? 'var(--bg)' : goalColor(g)} />
                       ) : (
-                        <span className="dt-goal-chip-dot" style={{ background: picked ? 'var(--paper)' : g.color, display: 'inline-block' }} />
+                        <span className="dt-goal-chip-dot" style={{ background: picked ? 'var(--bg)' : goalColor(g), display: 'inline-block' }} />
                       )}
                       {g.name}
                     </div>
@@ -1302,7 +1319,7 @@ export default function Ledger() {
              see report.js for why the report asks it rather than re-deriving schedules. */
           getTasks={getTasksForDate}
           isDone={(dateStr, taskId) => !!(days[dateStr] || defaultDay()).completed[taskId]}
-          goals={goals}
+          goals={goals.map((g) => ({ ...g, color: goalColor(g) }))}
           presets={presets}
           todayStr={todayStr}
           locale={locale}
@@ -1341,7 +1358,7 @@ export default function Ledger() {
                       <div className="dt-goal-edit-row">
                         <button
                           className="dt-goal-badge-btn"
-                          style={{ background: g.color }}
+                          style={{ background: goalColor(g) }}
                           onClick={() => cycleGoalColor(g.id)}
                           title={t('manage.changeColour')}
                         >
@@ -1441,7 +1458,7 @@ export default function Ledger() {
                     </button>
                     {showAchieved && achievedGoals.map((g) => (
                       <div key={g.id} className="dt-goal-edit-row">
-                        <span className="dt-goal-badge-btn" style={{ background: g.color, opacity: 0.55 }}>
+                        <span className="dt-goal-badge-btn" style={{ background: goalColor(g), opacity: 0.55 }}>
                           <GoalIcon icon={g.icon} size={13} color="currentColor" />
                         </span>
                         <div
@@ -1463,10 +1480,10 @@ export default function Ledger() {
 
                 <div className="dt-manage-section">
                   <div className="dt-field-label" style={{ marginBottom: 10 }}>{t('manage.appearance')}</div>
+                  <div className="dt-subfield-label">{t('manage.colourTheme')}</div>
                   <div className="dt-theme-grid">
                     {/* `th`, not `t` — `t` is the translate function in this scope. */}
                     {themes.map((th) => {
-                      const ThemeMascot = th.Mascot;
                       const active = th.id === themeId;
                       return (
                         <button
@@ -1474,18 +1491,46 @@ export default function Ledger() {
                           className={`dt-theme-card ${active ? 'active' : ''}`}
                           onClick={() => setThemeId(th.id)}
                         >
-                          <ThemeMascot size={40} mood={active ? 'cheer' : 'idle'} label={t(th.ariaKey)} />
-                          <div className="dt-theme-card-body">
-                            <div className="dt-theme-name">
-                              {t(th.nameKey)}
-                              {active && <Check size={12} strokeWidth={3} color="var(--moss)" />}
+                          {/* data-theme on the preview itself, so each card paints in
+                              its own palette straight from theme.css. Repeating the
+                              hex here in JS would be a second copy to keep in step. */}
+                          <div className="dt-theme-preview" data-theme={th.id}>
+                            <div className="dt-theme-preview-card">
+                              <span className="dt-theme-preview-dot" />
+                              <span className="dt-theme-preview-line ink" />
+                              <span className="dt-theme-preview-line muted" />
                             </div>
-                            <div className="dt-theme-blurb">{t(th.blurbKey)}</div>
-                            <div className="dt-theme-swatches">
-                              {th.swatches.map((c) => (
-                                <span key={c} className="dt-theme-swatch" style={{ background: c }} />
-                              ))}
-                            </div>
+                          </div>
+                          <div className="dt-theme-name">
+                            {t(th.nameKey)}
+                            {active && <Check size={12} strokeWidth={3} />}
+                          </div>
+                          <div className="dt-theme-goals" data-theme={th.id}>
+                            {[1, 2, 3, 4, 5].map((n) => (
+                              <span key={n} className="dt-theme-goal-dot" style={{ background: `var(--goal-${n})` }} />
+                            ))}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Independent of the palette: any character works with any colours. */}
+                  <div className="dt-subfield-label" style={{ marginTop: 18 }}>{t('manage.mascot')}</div>
+                  <div className="dt-mascot-grid">
+                    {mascots.map((m) => {
+                      const MascotArt = m.Mascot;
+                      const active = m.id === mascotId;
+                      return (
+                        <button
+                          key={m.id}
+                          className={`dt-mascot-card ${active ? 'active' : ''}`}
+                          onClick={() => setMascotId(m.id)}
+                        >
+                          <MascotArt size={40} mood={active ? 'cheer' : 'idle'} label={t(m.ariaKey)} />
+                          <div className="dt-mascot-name">
+                            {t(m.nameKey)}
+                            {active && <Check size={12} strokeWidth={3} />}
                           </div>
                         </button>
                       );
@@ -1526,7 +1571,7 @@ export default function Ledger() {
                 /* Keyed by goal so the expanded-history state starts fresh when you
                    switch goals, instead of carrying one goal's open rows into another. */
                 key={manageGoalId}
-                goal={manageGoalId === NO_GOAL_ID ? { id: null, name: t('common.others'), color: NO_GOAL_COLOR } : goalById(manageGoalId)}
+                goal={manageGoalId === NO_GOAL_ID ? { id: null, name: t('common.others'), color: NO_GOAL_COLOR } : { ...goalById(manageGoalId), color: goalColor(goalById(manageGoalId)) }}
                 isNoGoal={manageGoalId === NO_GOAL_ID}
                 t={t}
                 locale={locale}
@@ -1703,13 +1748,13 @@ function GoalDetail({
               offer that appears rather than a button you can press at any time. */}
           {canAchieve && (
             <button className="dt-achieve-prompt" onClick={onAchieve}>
-              <Sparkles size={16} color="var(--gold)" />
+              <Sparkles size={16} color="var(--accent)" />
               {t('goal.stepsDone')}
             </button>
           )}
           {achievedDate && (
             <div className="dt-achieved-banner">
-              <Trophy size={16} color="var(--moss)" />
+              <Trophy size={16} color="var(--accent)" />
               <span className="when">{t('goal.achievedOn', { date: formatShortDate(fromDateStr(achievedDate), locale) })}</span>
               <button className="dt-preset-btn" style={{ marginLeft: 'auto', flex: 'none', padding: '6px 10px' }} onClick={onReopen}>
                 <RotateCcw size={13} /> {t('goal.reopen')}
