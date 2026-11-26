@@ -913,6 +913,52 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 }
 .dt-buy-btn:disabled { opacity: 0.4; cursor: default; }
 
+/* ---- The star counter, and stars in flight ---- */
+.dt-star-count {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px 4px 6px;
+  margin-right: 2px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.dt-star-count svg { flex-shrink: 0; }
+/* A short squeeze as a star lands, so the number doesn't just silently tick over. */
+.dt-star-count.landed { animation: dt-star-land 0.4s var(--ease-bounce); }
+@keyframes dt-star-land {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+/* Fixed to the viewport because it travels between two elements in different stacking
+   contexts. pointer-events: none matters: without it a star mid-flight eats the tap on
+   whatever it passes over, and ticking three things quickly would miss. */
+.dt-star-flight {
+  position: fixed;
+  z-index: 70;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--accent);
+  animation: dt-star-fly 0.75s cubic-bezier(0.4, 0, 0.3, 1) forwards;
+}
+.dt-star-plus { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
+@keyframes dt-star-fly {
+  /* Pops at the checkbox first so you register where it came from, then travels. */
+  0%   { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
+  18%  { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
+  28%  { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.45); opacity: 0; }
+}
+
 /* ---- Bottom tab bar ---- */
 /* Settings is not here: it's the one you open least, so it stays as a header gear and
    these four get the width instead. */
