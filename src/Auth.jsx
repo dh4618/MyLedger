@@ -19,7 +19,7 @@ const EMAIL_KEY = 'ledger-email';
 // The emailed link is kept as the recovery path: it's how you get in if you
 // forget the password, and how you sign in the first time before one is set.
 export default function Auth({ children }) {
-  const { theme } = useTheme();
+  const { Mascot, ariaKey } = useTheme();
   const { t } = useLang();
   const [session, setSession] = useState(null);
   const [checking, setChecking] = useState(true);
@@ -128,12 +128,11 @@ export default function Auth({ children }) {
     setStatus(null);
   };
 
-  const Mascot = theme.Mascot;
 
   if (checking) {
     return (
       <div className="dt-loading">
-        <Mascot size={56} mood="idle" label={t(theme.ariaKey)} />
+        <Mascot size={56} mood="idle" label={t(ariaKey)} />
         <div>{t('auth.justAMoment')}</div>
       </div>
     );
@@ -145,7 +144,7 @@ export default function Auth({ children }) {
     <div className="dt-auth-wrap">
       <div className="dt-auth-card">
         <div className="dt-auth-mascot">
-          <Mascot size={64} mood={mode === 'password' ? 'idle' : 'sleepy'} label={t(theme.ariaKey)} />
+          <Mascot size={64} mood={mode === 'password' ? 'idle' : 'sleepy'} label={t(ariaKey)} />
         </div>
         <h1 className="dt-auth-title">{t('app.name')}</h1>
 

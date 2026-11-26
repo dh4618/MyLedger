@@ -14,26 +14,27 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Ledger" />
-    <meta name="theme-color" content="#EDF0EE" />
+    <meta name="theme-color" content="#FAF4ED" />
 
     <script>
       // Applies the saved theme before React boots, so the app opens in the right
       // colours instead of flashing the default palette on every launch. Runs after
       // the meta tags above so it can update them in place.
       //
-      // Keep this map in sync with THEMES in src/themes.jsx — [background, statusBar].
+      // Keep this map in sync with COLOR_THEMES in src/themes.jsx — [background, statusBar].
       // statusBar is 'default' for dark text, 'black' for light text, picked so the
       // clock stays legible against each palette.
       (function () {
         var THEMES = {
-          sprout: ['#EDF0EE', 'default'],
-          mochi:  ['#FDF2F4', 'default'],
-          ember:  ['#FBF3EA', 'default'],
-          pixel:  ['#F4F1FB', 'default'],
-          cloudy: ['#EFF5FC', 'default'],
-          luna:   ['#171B26', 'black']
+          'rose-pine-dawn': ['#FAF4ED', 'default'],
+          'wa-iro':         ['#F3EEE1', 'default'],
+          'dracula':        ['#282A36', 'black'],
+          'swiss':          ['#FFFFFF', 'default']
         };
-        var id = 'sprout';
+        // A saved value from before colours and mascots were separate settings
+        // (sprout, mochi, …) is not in this map, so it falls through to the
+        // default — which is what we want it to do.
+        var id = 'rose-pine-dawn';
         try {
           var saved = localStorage.getItem('ledger-theme');
           if (saved && THEMES[saved]) id = saved;
