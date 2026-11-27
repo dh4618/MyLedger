@@ -1,14 +1,13 @@
 import { storage, knownUserId } from './storage';
 import { readUnflushed, clearUnflushed } from './pendingWrites';
 import useDurableBlob from './useDurableBlob';
-import GroceryList from './GroceryList';
 import ReportPanel from './ReportPanel';
+import StorePanel from './StorePanel';
 import HatcheryPanel from './HatcheryPanel';
 import Pixel from './Pixel';
-import { emptyGroceries, normalizeGroceries, addItem, toggleItem, removeItem, clearBought } from './groceries';
 import { supabase } from './supabase';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays, Sparkles, ChevronDown, Trophy, RotateCcw, ShoppingCart, BarChart3, Flame, Egg } from 'lucide-react';
+import { Plus, X, ChevronLeft, ChevronRight, MoreVertical, Check, Settings, Trash2, Repeat, Pencil, CornerDownRight, Download, Upload, LogOut, Smile, CalendarDays, Sparkles, ChevronDown, Trophy, RotateCcw, Store, BarChart3, Flame, Egg } from 'lucide-react';
 import { useTheme } from './ThemeProvider';
 import { useLang } from './i18n/LanguageProvider';
 import ProgressBar from './ProgressBar';
@@ -26,6 +25,25 @@ import { emptyGame, normalizeGame, totalCompleted, stars, buyEgg, openEgg, selec
 // was created. A goal's slot is its position in the list, which is what makes the
 // first five goals read as goal-1..goal-5; `colorSlot` overrides that once you
 // cycle a goal's colour by hand, and a sixth goal wraps back to the first slot.
+// The picture you pinned, mirrored to this device.
+//
+// The pin lives in the `game` blob, which is exactly what the loading screen is waiting
+// for — so the screen that waits for your pet could never show it. A copy here is read
+// before the first paint and written whenever the pin changes, which costs one tiny
+// localStorage entry and means the app opens on your creature rather than on a generic
+// egg that swaps a second later.
+//
+// It is a cache, not state: `iconFor` still validates the real pin against the album,
+// and an unknown species falls back to the mystery egg by itself.
+const BOOT_ICON_KEY = 'ledger-boot-icon';
+const readBootIcon = () => {
+  try {
+    const raw = localStorage.getItem(BOOT_ICON_KEY);
+    const icon = raw ? JSON.parse(raw) : null;
+    return icon && icon.species && icon.stage ? icon : null;
+  } catch (e) { return null; }
+};
+
 const GOAL_SLOTS = 5;
 const goalColorAt = (slot) => `var(--goal-${(((slot % GOAL_SLOTS) + GOAL_SLOTS) % GOAL_SLOTS) + 1})`;
 const NO_GOAL_ID = '__no_goal__';
@@ -115,11 +133,12 @@ export default function Ledger() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState('');
   const [importStatus, setImportStatus] = useState('');
-  const [groceries, setGroceries] = useState(emptyGroceries());
   const [game, setGame] = useState(emptyGame());
-  const [showGroceries, setShowGroceries] = useState(false);
-  const [showReport, setShowReport] = useState(false);
-  const [showHatchery, setShowHatchery] = useState(false);
+  const [bootIcon] = useState(readBootIcon);
+  // Which tab is open. These were three booleans for three sheets pulled up over the
+  // day page; they are screens now, so one piece of state says which one you are on
+  // and the day is simply the tab the app opens at.
+  const [tab, setTab] = useState('day');
   const writesLocked = useRef(false);
 
   const todayStr = toDateStr(new Date());
@@ -147,26 +166,23 @@ export default function Ledger() {
       let r = [];
       let p = [];
       let allDays = {};
-      let shopping = emptyGroceries();
       let hatchery = emptyGame();
       let rateLimited = false;
 
-      // Fetch the six core keys together. On a healthy load this is one quick round-trip
+      // Fetch the five core keys together. On a healthy load this is one quick round-trip
       // with no artificial pauses; the retry/backoff only engages if a read actually fails.
-      const [gr, rr, pr, dr, sr, hr] = await Promise.all([
+      const [gr, rr, pr, dr, hr] = await Promise.all([
         readKey('goals'),
         readKey('recurring-tasks'),
         readKey('presets'),
         readKey('all-days'),
-        readKey('groceries'),
         readKey('game'),
       ]);
-      if ([gr, rr, pr, dr, sr, hr].some((x) => x.rateLimited)) rateLimited = true;
+      if ([gr, rr, pr, dr, hr].some((x) => x.rateLimited)) rateLimited = true;
       if (gr.res && gr.res.value) { try { g = JSON.parse(gr.res.value); } catch (e) {} }
       if (rr.res && rr.res.value) { try { r = JSON.parse(rr.res.value); } catch (e) {} }
       if (pr.res && pr.res.value) { try { p = JSON.parse(pr.res.value); } catch (e) {} }
       if (dr.res && dr.res.value) { try { allDays = JSON.parse(dr.res.value); } catch (e) {} }
-      if (sr.res && sr.res.value) { try { shopping = normalizeGroceries(JSON.parse(sr.res.value)); } catch (e) {} }
       if (hr.res && hr.res.value) { try { hatchery = normalizeGame(JSON.parse(hr.res.value)); } catch (e) {} }
 
       // A mirror left behind by the previous session means that key's last write never
@@ -180,10 +196,8 @@ export default function Ledger() {
         try { return parse(JSON.parse(raw)); } catch (e) { clearUnflushed(key); return null; }
       };
       const replayDays = takeUnflushed('all-days', dr.res && dr.res.value, (v) => v);
-      const replayShopping = takeUnflushed('groceries', sr.res && sr.res.value, normalizeGroceries);
       const replayGame = takeUnflushed('game', hr.res && hr.res.value, normalizeGame);
       if (replayDays) allDays = replayDays;
-      if (replayShopping) shopping = replayShopping;
       if (replayGame) hatchery = replayGame;
 
       // Show the loaded data immediately — don't make the user wait on migration.
@@ -191,10 +205,8 @@ export default function Ledger() {
       setRecurring(r);
       setPresets(p);
       setDays(allDays);
-      setGroceries(shopping);
       setGame(hatchery);
       daysBlob.adopt(allDays);
-      groceryBlob.adopt(shopping);
       gameBlob.adopt(hatchery);
       setLoading(false);
 
@@ -209,7 +221,6 @@ export default function Ledger() {
       }
 
       if (replayDays) await daysBlob.flush();
-      if (replayShopping) await groceryBlob.flush();
     })();
   }, []);
 
@@ -268,7 +279,6 @@ export default function Ledger() {
   // The two blobs that are edited a tap at a time, so both are debounced and both need
   // to survive the app being closed mid-write. See useDurableBlob for why that matters.
   const daysBlob = useDurableBlob({ storageKey: 'all-days', label: 'error.label.days', persist, locked: writesLocked });
-  const groceryBlob = useDurableBlob({ storageKey: 'groceries', label: 'error.label.groceries', persist, locked: writesLocked });
   const gameBlob = useDurableBlob({ storageKey: 'game', label: 'error.label.game', persist, locked: writesLocked });
 
   const saveDay = (dateStr, next) => {
@@ -276,22 +286,6 @@ export default function Ledger() {
     setDays(updated);
     daysBlob.save(updated);
   };
-  const saveGroceries = (next) => {
-    setGroceries(next);
-    groceryBlob.save(next);
-  };
-
-  // The reducers live in groceries.js and are pure, so this layer is only wiring. Adding
-  // returns the row to flash — including when the name was already there, which is how a
-  // duplicate reads as "already on the list" rather than as nothing happening.
-  const addGrocery = (name) => {
-    const result = addItem(groceries, name);
-    if (!result) return null;
-    if (result.next !== groceries) saveGroceries(result.next);
-    return result.id;
-  };
-  const outstandingGroceries = groceries.items.filter((x) => !x.bought).length;
-
   const getDay = (dateStr) => days[dateStr] || defaultDay();
 
   // Which day a task was ticked off on (if any). Used to give keep-until-complete tasks a
@@ -403,6 +397,20 @@ export default function Ledger() {
   // of the two modes it is in without re-deriving it.
   const face = iconFor(gameNow);
   const faceSprite = face ? spriteFor(face.species, face.stage) : MYSTERY_EGG;
+
+  // Keep the device's copy in step with the real pin, so the next cold start opens on
+  // it. Written on every change rather than on pin, which also covers unpinning and a
+  // pin that the album no longer backs.
+  useEffect(() => {
+    try {
+      if (face) localStorage.setItem(BOOT_ICON_KEY, JSON.stringify(face));
+      else localStorage.removeItem(BOOT_ICON_KEY);
+    } catch (e) { /* private mode, blocked storage: the egg is a fine fallback */ }
+  }, [face && face.species, face && face.stage]);
+
+  // Read once, before anything has loaded. useState's initialiser rather than a ref so
+  // it is not re-read on every render.
+  const bootSprite = bootIcon ? spriteFor(bootIcon.species, bootIcon.stage) : MYSTERY_EGG;
 
   const starBalance = stars(gameNow, completedTotal).balance;
 
@@ -516,10 +524,9 @@ export default function Ledger() {
       message: t('account.signOutConfirm'),
       confirmLabel: t('account.signOut'),
       onConfirm: async () => {
-        // Day and grocery writes are debounced, so flush anything pending before the
-        // session goes away and the write would be rejected.
+        // Day writes are debounced, so flush anything pending before the session goes
+        // away and the write would be rejected.
         if (daysBlob.pending()) await daysBlob.flush();
-        if (groceryBlob.pending()) await groceryBlob.flush();
         await supabase.auth.signOut();
       },
     });
@@ -692,7 +699,7 @@ export default function Ledger() {
   const openExportModal = async () => {
     setShowExportModal(true);
     try {
-      const backup = { exportedAt: new Date().toISOString(), goals, recurring, presets, days: daysBlob.peek(), groceries };
+      const backup = { exportedAt: new Date().toISOString(), goals, recurring, presets, days: daysBlob.peek() };
       setExportJson(JSON.stringify(backup, null, 2));
     } catch (e) {
       setExportJson(t('backup.exportFailed'));
@@ -743,12 +750,6 @@ export default function Ledger() {
             setDays(parsed.days);
             daysBlob.adopt(parsed.days);
             await daysBlob.flush();
-          }
-          if (parsed.groceries && typeof parsed.groceries === 'object') {
-            const restored = normalizeGroceries(parsed.groceries);
-            setGroceries(restored);
-            groceryBlob.adopt(restored);
-            await groceryBlob.flush();
           }
           setImportStatus('');
           setImportText('');
@@ -926,7 +927,7 @@ export default function Ledger() {
   if (loading) {
     return (
       <div className="dt-loading">
-        <Pixel sprite={faceSprite} size={56} label={t('game.faceAria')} />
+        <Pixel sprite={bootSprite} size={56} label={t('game.faceAria')} />
         <div>{t('auth.loading')}</div>
       </div>
     );
@@ -954,9 +955,15 @@ export default function Ledger() {
               </div>
             </div>
             <div className="dt-topbar-actions">
-              {/* In the header rather than on the day page so it is there on every tab,
-                  and so a flying star always has somewhere to land. */}
-              <div ref={starCounterRef} className={`dt-star-count ${landed ? 'landed' : ''}`} title={t('game.starsLabel')}>
+              {/* In the header rather than on a page, so it is there on every tab and a
+                  flying star always has somewhere to land. Tapping it goes to the store,
+                  which is the only thing stars are for. */}
+              <button
+                ref={starCounterRef}
+                className={`dt-star-count ${landed ? 'landed' : ''}`}
+                title={t('tab.store')}
+                onClick={() => setTab('store')}
+              >
                 {/* The same drawn star that flies here, so the thing that arrives and
                     the thing it lands in are made of the same pixels. */}
                 <Pixel sprite={PIXEL_STAR_SMALL} size={14} />
@@ -966,158 +973,208 @@ export default function Ledger() {
                     It self-corrects: a flight leaves `flights` when its animation ends,
                     and the clamp stops an untick mid-flight showing a negative. */}
                 <span>{Math.max(0, starBalance - flights.length)}</span>
-              </div>
-              {/* Day, Pet, Progress and List moved to the bottom bar. Settings stays up
-                  here: it's the one you open least, and four wide tabs beat five narrow
-                  ones on a phone. */}
+              </button>
               <button className="dt-settings-btn" title={t('manage.title')} onClick={() => { setManageGoalId(null); setShowAddGoalInManage(false); setIconPickerGoalId(null); setShowManage(true); }}>
                 <Settings size={20} />
               </button>
             </div>
           </div>
 
-          <div className="dt-goals-row">
-            {/* Only goals with something on this day, so a pile of long-term projects
-                doesn't crowd the row. The active filter stays visible even once its
-                count drops to zero, otherwise you'd have no way to switch it off. */}
-            {goals.filter((g) => goalProgress[g.id] || activeGoalFilter === g.id).map((g) => {
-              const active = activeGoalFilter === g.id;
-              const count = goalProgress[g.id];
-              return (
-                <div
-                  key={g.id}
-                  className={`dt-goal-pill ${active ? 'active' : ''}`}
-                  onClick={() => setActiveGoalFilter(active ? null : g.id)}
-                >
-                  {hasGoalIcon(g.icon) ? (
-                    <span className="dt-goal-icon">
-                      <GoalIcon icon={g.icon} size={13} color={active ? 'var(--bg)' : goalColor(g)} />
-                    </span>
-                  ) : (
-                    <span className="dt-goal-dot" style={{ background: active ? 'var(--bg)' : goalColor(g) }} />
-                  )}
-                  {g.name}
-                  {count && <span className="dt-goal-count">{count.done}/{count.total}</span>}
-                </div>
-              );
-            })}
-            <div
-              className={`dt-goal-pill ${activeGoalFilter === NO_GOAL_ID ? 'active' : ''}`}
-              onClick={() => setActiveGoalFilter(activeGoalFilter === NO_GOAL_ID ? null : NO_GOAL_ID)}
-            >
-              <span className="dt-goal-dot" style={{ background: activeGoalFilter === NO_GOAL_ID ? 'var(--bg)' : NO_GOAL_COLOR }} />
-              {t('common.others')}
-              {goalProgress[NO_GOAL_ID] && (
-                <span className="dt-goal-count">{goalProgress[NO_GOAL_ID].done}/{goalProgress[NO_GOAL_ID].total}</span>
+          {/* The goal filters, the date and the week strip belong to the day and
+              only to it; the brand, the star count and the gear stay on every tab. */}
+          {tab === 'day' && (
+            <>
+            <div className="dt-goals-row">
+              {/* Only goals with something on this day, so a pile of long-term projects
+                  doesn't crowd the row. The active filter stays visible even once its
+                  count drops to zero, otherwise you'd have no way to switch it off. */}
+              {goals.filter((g) => goalProgress[g.id] || activeGoalFilter === g.id).map((g) => {
+                const active = activeGoalFilter === g.id;
+                const count = goalProgress[g.id];
+                return (
+                  <div
+                    key={g.id}
+                    className={`dt-goal-pill ${active ? 'active' : ''}`}
+                    onClick={() => setActiveGoalFilter(active ? null : g.id)}
+                  >
+                    {hasGoalIcon(g.icon) ? (
+                      <span className="dt-goal-icon">
+                        <GoalIcon icon={g.icon} size={13} color={active ? 'var(--bg)' : goalColor(g)} />
+                      </span>
+                    ) : (
+                      <span className="dt-goal-dot" style={{ background: active ? 'var(--bg)' : goalColor(g) }} />
+                    )}
+                    {g.name}
+                    {count && <span className="dt-goal-count">{count.done}/{count.total}</span>}
+                  </div>
+                );
+              })}
+              <div
+                className={`dt-goal-pill ${activeGoalFilter === NO_GOAL_ID ? 'active' : ''}`}
+                onClick={() => setActiveGoalFilter(activeGoalFilter === NO_GOAL_ID ? null : NO_GOAL_ID)}
+              >
+                <span className="dt-goal-dot" style={{ background: activeGoalFilter === NO_GOAL_ID ? 'var(--bg)' : NO_GOAL_COLOR }} />
+                {t('common.others')}
+                {goalProgress[NO_GOAL_ID] && (
+                  <span className="dt-goal-count">{goalProgress[NO_GOAL_ID].done}/{goalProgress[NO_GOAL_ID].total}</span>
+                )}
+              </div>
+            </div>
+
+            <div className="dt-date-row">
+              <div className="dt-date-headline" onClick={() => setShowCalendar(true)}>{dateHeadline}</div>
+              {selectedDateStr !== todayStr && (
+                <button className="dt-today-btn" onClick={() => setSelectedDateStr(todayStr)}>
+                  <CalendarDays size={12} /> {t('common.today')}
+                </button>
               )}
             </div>
-          </div>
 
-          <div className="dt-date-row">
-            <div className="dt-date-headline" onClick={() => setShowCalendar(true)}>{dateHeadline}</div>
-            {selectedDateStr !== todayStr && (
-              <button className="dt-today-btn" onClick={() => setSelectedDateStr(todayStr)}>
-                <CalendarDays size={12} /> {t('common.today')}
+            <div className="dt-week-strip">
+              <button className="dt-week-arrow" onClick={() => setSelectedDateStr(toDateStr(addDays(fromDateStr(selectedDateStr), -7)))}>
+                <ChevronLeft size={18} />
               </button>
-            )}
-          </div>
-
-          <div className="dt-week-strip">
-            <button className="dt-week-arrow" onClick={() => setSelectedDateStr(toDateStr(addDays(fromDateStr(selectedDateStr), -7)))}>
-              <ChevronLeft size={18} />
-            </button>
-            {weekDates.map((ds, i) => {
-              const dTasks = getTasksForDate(ds);
-              const day = getDay(ds);
-              const hasTasks = dTasks.length > 0;
-              const dDone = dTasks.filter((t) => day.completed[t.id]).length;
-              const allComplete = hasTasks && dDone === dTasks.length;
-              // --p drives the dot's conic-gradient, turning it into a tiny
-              // progress ring: slate when untouched, gold once finished.
-              const pct = hasTasks ? Math.round((dDone / dTasks.length) * 100) : 0;
-              return (
-                <button
-                  key={ds}
-                  className={`dt-day-tab ${ds === selectedDateStr ? 'selected' : ''} ${ds === todayStr ? 'today' : ''}`}
-                  onClick={() => setSelectedDateStr(ds)}
-                >
-                  <span className="letter">{weekdayLetters[i]}</span>
-                  <span className="num">{fromDateStr(ds).getDate()}</span>
-                  <span
-                    className={`dt-tab-indicator ${allComplete ? 'complete' : hasTasks ? 'has-tasks' : ''}`}
-                    style={{ '--p': pct }}
-                  />
-                </button>
-              );
-            })}
-            <button className="dt-week-arrow" onClick={() => setSelectedDateStr(toDateStr(addDays(fromDateStr(selectedDateStr), 7)))}>
-              <ChevronRight size={18} />
-            </button>
-          </div>
+              {weekDates.map((ds, i) => {
+                const dTasks = getTasksForDate(ds);
+                const day = getDay(ds);
+                const hasTasks = dTasks.length > 0;
+                const dDone = dTasks.filter((t) => day.completed[t.id]).length;
+                const allComplete = hasTasks && dDone === dTasks.length;
+                // --p drives the dot's conic-gradient, turning it into a tiny
+                // progress ring: slate when untouched, gold once finished.
+                const pct = hasTasks ? Math.round((dDone / dTasks.length) * 100) : 0;
+                return (
+                  <button
+                    key={ds}
+                    className={`dt-day-tab ${ds === selectedDateStr ? 'selected' : ''} ${ds === todayStr ? 'today' : ''}`}
+                    onClick={() => setSelectedDateStr(ds)}
+                  >
+                    <span className="letter">{weekdayLetters[i]}</span>
+                    <span className="num">{fromDateStr(ds).getDate()}</span>
+                    <span
+                      className={`dt-tab-indicator ${allComplete ? 'complete' : hasTasks ? 'has-tasks' : ''}`}
+                      style={{ '--p': pct }}
+                    />
+                  </button>
+                );
+              })}
+              <button className="dt-week-arrow" onClick={() => setSelectedDateStr(toDateStr(addDays(fromDateStr(selectedDateStr), 7)))}>
+                <ChevronRight size={18} />
+              </button>
+            </div>
+            </>
+          )}
         </div>
 
-        <ProgressBar done={doneCount} total={tasks.length} scopeLabel={activeGoalName} />
+        {/* One tab's page at a time. These were sheets pulled up over the day, which
+            meant the day was always underneath and "Day" meant closing whatever was
+            open. They are screens now: the header and the bar stay, the middle changes. */}
+        {tab === 'day' && (
+          <>
+          <ProgressBar done={doneCount} total={tasks.length} scopeLabel={activeGoalName} />
 
-        {/* Only on today. The streak is about today whichever day you're looking at, so
-            showing it while you browse last Tuesday would read as a fact about that day. */}
-        {selectedDateStr === todayStr && streak.current > 0 && (
-          <div className={`dt-streak-line ${streak.includesToday ? 'live' : 'open'}`}>
-            <Flame size={14} />
-            <span className="count">{t('streak.days', { n: streak.current })}</span>
-            {!streak.includesToday && <span className="hint">· {t('streak.keepGoing')}</span>}
-          </div>
-        )}
-
-        <div className="dt-body">
-          {tasks.length === 0 && (
-            <div className="dt-empty-state">
-              <div className="dt-empty-mascot">
-                <Pixel sprite={faceSprite} size={76} label={t('game.faceAria')} />
-              </div>
-              <div className="headline">{t('task.emptyHeadline')}</div>
-              <div>{t('task.emptyBody', { date: dateHeadline })}</div>
+          {/* Only on today. The streak is about today whichever day you're looking at, so
+              showing it while you browse last Tuesday would read as a fact about that day. */}
+          {selectedDateStr === todayStr && streak.current > 0 && (
+            <div className={`dt-streak-line ${streak.includesToday ? 'live' : 'open'}`}>
+              <Flame size={14} />
+              <span className="count">{t('streak.days', { n: streak.current })}</span>
+              {!streak.includesToday && <span className="hint">· {t('streak.keepGoing')}</span>}
             </div>
           )}
 
-          {/* `task`, not `t` — `t` is the translate function in this scope. */}
-          {taskSections.map((section) => (
-            <div key={section.key}>
-              <div className="dt-section-label dt-section-label-row">
-                {section.goal && (hasGoalIcon(section.goal.icon)
-                  ? <GoalIcon icon={section.goal.icon} size={11} color={goalColor(section.goal)} />
-                  : <span className="dt-goal-dot" style={{ background: goalColor(section.goal), width: 6, height: 6 }} />)}
-                {section.key === NO_GOAL_ID && (
-                  <span className="dt-goal-dot" style={{ background: NO_GOAL_COLOR, width: 6, height: 6 }} />
-                )}
-                {section.label}
+          <div className="dt-body">
+            {tasks.length === 0 && (
+              <div className="dt-empty-state">
+                <div className="dt-empty-mascot">
+                  <Pixel sprite={faceSprite} size={76} label={t('game.faceAria')} />
+                </div>
+                <div className="headline">{t('task.emptyHeadline')}</div>
+                <div>{t('task.emptyBody', { date: dateHeadline })}</div>
               </div>
-              {section.tasks.map((task) => (
-                <TaskRow
-                  key={task.id}
-                  task={task}
-                  t={t}
-                  locale={locale}
-                  goal={goalById(task.goalId)}
-                  // Inside a goal section the heading already names the goal, so
-                  // repeating it on every row is noise. The timed section mixes
-                  // goals, so it keeps the chip.
-                  hideGoal={!!section.goal}
-                  completed={!!dayCompleted[task.id]}
-                  menuOpen={openMenuTaskId === task.id}
-                  onToggleMenu={() => setOpenMenuTaskId(openMenuTaskId === task.id ? null : task.id)}
-                  onCloseMenu={() => setOpenMenuTaskId(null)}
-                  onToggleComplete={(fromRect) => toggleFromDay(selectedDateStr, task.id, fromRect)}
-                  onEdit={() => openEditTask(task, task.carriedFrom ? { dateStr: task.carriedFrom } : {})}
-                  onSkipToday={() => skipToday(selectedDateStr, task.id)}
-                  onStopRepeating={() => stopRepeating(task.id)}
-                  onDelete={() => deleteOneOff(selectedDateStr, task.id)}
-                />
-              ))}
-            </div>
-          ))}
-        </div>
+            )}
 
-        <button className="dt-fab" onClick={() => openAddTask()}><Plus size={26} /></button>
+            {/* `task`, not `t` — `t` is the translate function in this scope. */}
+            {taskSections.map((section) => (
+              <div key={section.key}>
+                <div className="dt-section-label dt-section-label-row">
+                  {section.goal && (hasGoalIcon(section.goal.icon)
+                    ? <GoalIcon icon={section.goal.icon} size={11} color={goalColor(section.goal)} />
+                    : <span className="dt-goal-dot" style={{ background: goalColor(section.goal), width: 6, height: 6 }} />)}
+                  {section.key === NO_GOAL_ID && (
+                    <span className="dt-goal-dot" style={{ background: NO_GOAL_COLOR, width: 6, height: 6 }} />
+                  )}
+                  {section.label}
+                </div>
+                {section.tasks.map((task) => (
+                  <TaskRow
+                    key={task.id}
+                    task={task}
+                    t={t}
+                    locale={locale}
+                    goal={goalById(task.goalId)}
+                    // Inside a goal section the heading already names the goal, so
+                    // repeating it on every row is noise. The timed section mixes
+                    // goals, so it keeps the chip.
+                    hideGoal={!!section.goal}
+                    completed={!!dayCompleted[task.id]}
+                    menuOpen={openMenuTaskId === task.id}
+                    onToggleMenu={() => setOpenMenuTaskId(openMenuTaskId === task.id ? null : task.id)}
+                    onCloseMenu={() => setOpenMenuTaskId(null)}
+                    onToggleComplete={(fromRect) => toggleFromDay(selectedDateStr, task.id, fromRect)}
+                    onEdit={() => openEditTask(task, task.carriedFrom ? { dateStr: task.carriedFrom } : {})}
+                    onSkipToday={() => skipToday(selectedDateStr, task.id)}
+                    onStopRepeating={() => stopRepeating(task.id)}
+                    onDelete={() => deleteOneOff(selectedDateStr, task.id)}
+                  />
+                ))}
+              </div>
+            ))}
+          </div>
+
+          <button className="dt-fab" onClick={() => openAddTask()}><Plus size={26} /></button>
+          </>
+        )}
+
+        {tab === 'pet' && (
+          <HatcheryPanel
+            game={gameNow}
+            total={completedTotal}
+            onOpen={(id) => { const next = openEgg(gameNow, id, Math.floor(Math.random() * 100000)); if (next) saveGame(next); }}
+            onSelect={(id) => { const next = selectPet(gameNow, id); if (next) saveGame(next); }}
+            /* One star, one step of growth. Returns null when it can't — no pet on
+               show, no stars, already grown — and the button is disabled for the same
+               reasons. */
+            onFeed={() => { const next = feed(gameNow, completedTotal); if (next) saveGame(next); }}
+            /* Tapping the pinned picture again clears it — without that, pinning once
+               would make the plain-egg icon unreachable. */
+            onPin={(species, stage) => { const next = pinIcon(gameNow, species, stage); if (next) saveGame(next); }}
+            onUnpin={() => saveGame(clearIcon(gameNow))}
+          />
+        )}
+
+        {tab === 'store' && (
+          <StorePanel
+            game={gameNow}
+            total={completedTotal}
+            onBuy={() => { const next = buyEgg(gameNow, completedTotal, genId()); if (next) saveGame(next); }}
+          />
+        )}
+
+        {tab === 'progress' && (
+          <ReportPanel
+            /* getTasksForDate is the single source of "was this task live that day" —
+               see report.js for why the report asks it rather than re-deriving schedules. */
+            getTasks={getTasksForDate}
+            isDone={(dateStr, taskId) => !!(days[dateStr] || defaultDay()).completed[taskId]}
+            goals={goals.map((g) => ({ ...g, color: goalColor(g) }))}
+            presets={presets}
+            todayStr={todayStr}
+            locale={locale}
+            noGoalColor={NO_GOAL_COLOR}
+            streak={streak}
+          />
+        )}
 
         {/* Fixed and pointer-events:none, so a star in flight never swallows a tap on
             the row underneath — you can tick three things in a row without waiting.
@@ -1156,27 +1213,26 @@ export default function Ledger() {
           </div>
         ))}
 
-        {/* The panels are still sheets over the day page rather than separate screens,
-            so "Day" means close whatever is open. Which tab reads as current follows
-            from that, with no second piece of state to fall out of step with it. */}
+        {/* Four real tabs. Settings stays a sheet behind the header gear: it's the one
+            you open least, and four wide tabs beat five narrow ones on a phone. */}
         <nav className="dt-tabbar">
           {[
-            { id: 'day', Icon: CalendarDays, label: t('tab.day'), on: () => { setShowHatchery(false); setShowReport(false); setShowGroceries(false); } },
-            { id: 'pet', Icon: Egg, label: t('tab.pet'), on: () => { setShowReport(false); setShowGroceries(false); setShowHatchery(true); } },
-            { id: 'progress', Icon: BarChart3, label: t('tab.progress'), on: () => { setShowHatchery(false); setShowGroceries(false); setShowReport(true); } },
-            { id: 'list', Icon: ShoppingCart, label: t('tab.list'), badge: outstandingGroceries, on: () => { setShowHatchery(false); setShowReport(false); setShowGroceries(true); } },
-          ].map(({ id, Icon, label, badge, on }) => {
-            const openTab = showHatchery ? 'pet' : showReport ? 'progress' : showGroceries ? 'list' : 'day';
-            return (
-              <button key={id} data-tab={id} className={`dt-tab ${openTab === id ? 'active' : ''}`} aria-current={openTab === id ? 'page' : undefined} onClick={on}>
-                <span className="dt-tab-icon">
-                  <Icon size={20} />
-                  {badge > 0 && <span className="dt-cart-badge">{badge}</span>}
-                </span>
-                <span className="dt-tab-label">{label}</span>
-              </button>
-            );
-          })}
+            { id: 'day', Icon: CalendarDays, label: t('tab.day') },
+            { id: 'pet', Icon: Egg, label: t('tab.pet') },
+            { id: 'store', Icon: Store, label: t('tab.store') },
+            { id: 'progress', Icon: BarChart3, label: t('tab.progress') },
+          ].map(({ id, Icon, label }) => (
+            <button
+              key={id}
+              data-tab={id}
+              className={`dt-tab ${tab === id ? 'active' : ''}`}
+              aria-current={tab === id ? 'page' : undefined}
+              onClick={() => setTab(id)}
+            >
+              <span className="dt-tab-icon"><Icon size={20} /></span>
+              <span className="dt-tab-label">{label}</span>
+            </button>
+          ))}
         </nav>
       </div>
 
@@ -1483,54 +1539,6 @@ export default function Ledger() {
             </div>
           </div>
         </div>
-      )}
-
-      {showHatchery && (
-        <HatcheryPanel
-          game={gameNow}
-          total={completedTotal}
-          onBuy={() => { const next = buyEgg(gameNow, completedTotal, genId()); if (next) saveGame(next); }}
-          onOpen={(id) => { const next = openEgg(gameNow, id, Math.floor(Math.random() * 100000)); if (next) saveGame(next); }}
-          onSelect={(id) => { const next = selectPet(gameNow, id); if (next) saveGame(next); }}
-          /* One star, one step of growth. Returns null when it can't — no slot, no
-             stars, already grown — and the button is disabled for the same reasons. */
-          onFeed={() => { const next = feed(gameNow, completedTotal); if (next) saveGame(next); }}
-          /* Tapping the pinned picture again clears it — without that, pinning once
-             would make the follow-your-pet behaviour unreachable. */
-          onPin={(species, stage) => {
-            const next = pinIcon(gameNow, species, stage);
-            if (next) saveGame(next);
-          }}
-          onUnpin={() => saveGame(clearIcon(gameNow))}
-          onClose={() => setShowHatchery(false)}
-        />
-      )}
-
-      {showReport && (
-        <ReportPanel
-          /* getTasksForDate is the single source of "was this task live that day" —
-             see report.js for why the report asks it rather than re-deriving schedules. */
-          getTasks={getTasksForDate}
-          isDone={(dateStr, taskId) => !!(days[dateStr] || defaultDay()).completed[taskId]}
-          goals={goals.map((g) => ({ ...g, color: goalColor(g) }))}
-          presets={presets}
-          todayStr={todayStr}
-          locale={locale}
-          noGoalColor={NO_GOAL_COLOR}
-          streak={streak}
-          onClose={() => setShowReport(false)}
-        />
-      )}
-
-      {showGroceries && (
-        <GroceryList
-          list={groceries}
-          onAdd={addGrocery}
-          onToggle={(id) => saveGroceries(toggleItem(groceries, id))}
-          onRemove={(id) => saveGroceries(removeItem(groceries, id))}
-          onClearBought={() => saveGroceries(clearBought(groceries))}
-          onClose={() => setShowGroceries(false)}
-        />
       )}
 
       {showManage && (

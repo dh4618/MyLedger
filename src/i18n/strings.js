@@ -18,7 +18,7 @@
 // ---------------------------------------------------------------------------
 
 export const en = {
-  'app.name': 'Ledger',
+  'app.name': 'Hatchery',
   'app.tagline': 'a page for every day',
 
   'common.save': 'Save',
@@ -33,7 +33,7 @@ export const en = {
   // Joins a list of weekday abbreviations. Chinese uses a full-width separator.
   'common.listSep': ', ',
 
-  'auth.loading': 'Loading your ledger…',
+  'auth.loading': 'Loading your day…',
   'auth.justAMoment': 'Just a moment…',
   'auth.subPassword': 'Sign in once and this device stays signed in.',
   'auth.emailPlaceholder': 'you@example.com',
@@ -134,14 +134,6 @@ export const en = {
   'goal.lockedHint': 'Achieved — reopen it to add anything new.',
   'goal.reopenConfirm': 'Untick this? {goal} was achieved on {date}, so it will be reopened.',
 
-  'grocery.title': 'Groceries',
-  'grocery.addPlaceholder': 'Add an item…',
-  'grocery.add': 'Add',
-  'grocery.remove': 'Remove',
-  'grocery.buyAgain': 'Buy again',
-  'grocery.empty': 'Nothing on the list. Add things as you think of them.',
-  'grocery.boughtSection': 'Bought · {n}',
-  'grocery.clearBought': 'Clear bought ({n})',
 
   'manage.title': 'Manage',
   'manage.noGoals': 'No goals yet.',
@@ -153,7 +145,6 @@ export const en = {
   'manage.language': 'Language',
   'manage.appearance': 'Appearance',
   'manage.colourTheme': 'Colours',
-  'game.title': 'Hatchery',
   'game.starsLabel': 'stars',
   'game.starsHint': 'Every task you complete earns a star.',
   'game.raising': 'Raising',
@@ -163,6 +154,7 @@ export const en = {
   'game.feed': 'Feed',
   'game.tada': 'Ta-da!',
   'game.store': 'Store',
+  'game.storeHint': 'A new egg goes straight into your collection, on the Pet tab.',
   'game.mysteryEgg': 'Mystery egg',
   /* No noun after the count: there is no plural machinery here, and "1 more stars"
      is wrong at the production price too, not just the testing one. The star icon
@@ -176,12 +168,11 @@ export const en = {
      egg shows you the egg, not the animal — the name is what hatching is for. */
   'game.unknownName': '???',
   'game.open': 'Open',
-  'game.raisingNow': 'Raising now',
   'game.faceAria': 'Your creature',
   'tab.day': 'Day',
   'tab.pet': 'Pet',
   'tab.progress': 'Progress',
-  'tab.list': 'List',
+  'tab.store': 'Store',
   'game.habitatEmpty': 'Nobody lives here yet. Buy an egg and open it.',
   'game.album': 'Album',
   'game.albumEmpty': 'Pictures appear here as your creatures grow.',
@@ -265,7 +256,6 @@ export const en = {
   'error.label.recurring': 'recurring tasks',
   'error.label.presets': 'presets',
   'error.label.days': 'day data',
-  'error.label.groceries': 'the groceries list',
   'error.label.game': 'the hatchery',
 
   'goalIcon.dumbbell': 'Fitness',
@@ -287,7 +277,7 @@ export const en = {
 };
 
 export const zhCN = {
-  'app.name': '账本',
+  'app.name': '孵化屋',
   'app.tagline': '每天一页',
 
   'common.save': '保存',
@@ -301,7 +291,7 @@ export const zhCN = {
   'common.noneYet': '暂无。',
   'common.listSep': '、',
 
-  'auth.loading': '正在加载你的账本…',
+  'auth.loading': '正在加载…',
   'auth.justAMoment': '请稍候…',
   'auth.subPassword': '登录一次，此设备将保持登录状态。',
   'auth.emailPlaceholder': 'you@example.com',
@@ -396,14 +386,6 @@ export const zhCN = {
   'goal.lockedHint': '已达成 —— 如需添加内容，请先重新开启。',
   'goal.reopenConfirm': '取消勾选？{goal} 已于 {date} 达成，这会重新开启它。',
 
-  'grocery.title': '购物清单',
-  'grocery.addPlaceholder': '添加一项…',
-  'grocery.add': '添加',
-  'grocery.remove': '删除',
-  'grocery.buyAgain': '再买一次',
-  'grocery.empty': '清单是空的。想到什么就随手加进来。',
-  'grocery.boughtSection': '已买 · {n}',
-  'grocery.clearBought': '清除已买（{n}）',
 
   'manage.title': '管理',
   'manage.noGoals': '还没有目标。',
@@ -415,7 +397,6 @@ export const zhCN = {
   'manage.language': '语言',
   'manage.appearance': '外观',
   'manage.colourTheme': '配色',
-  'game.title': '孵化屋',
   'game.starsLabel': '星星',
   'game.starsHint': '每完成一项任务获得一颗星星。',
   'game.raising': '正在养育',
@@ -425,6 +406,7 @@ export const zhCN = {
   'game.feed': '喂食',
   'game.tada': '铛铛！',
   'game.store': '商店',
+  'game.storeHint': '买到的蛋会直接进入伙伴页的收藏。',
   'game.mysteryEgg': '神秘蛋',
   'game.needMore': '还差 {n} 颗星星。',
   'game.collection': '收藏',
@@ -433,12 +415,11 @@ export const zhCN = {
   'game.unopened': '未打开',
   'game.unknownName': '???',
   'game.open': '打开',
-  'game.raisingNow': '正在养育',
   'game.faceAria': '你的伙伴',
   'tab.day': '今天',
   'tab.pet': '伙伴',
   'tab.progress': '进度',
-  'tab.list': '清单',
+  'tab.store': '商店',
   'game.habitatEmpty': '这里还没有住客。先买一颗蛋，打开它。',
   'game.album': '图鉴',
   'game.albumEmpty': '伙伴长大后，这里会收集到它们各个阶段的样子。',
@@ -521,7 +502,6 @@ export const zhCN = {
   'error.label.recurring': '重复任务',
   'error.label.presets': '预设',
   'error.label.days': '日程数据',
-  'error.label.groceries': '购物清单',
   'error.label.game': '孵化屋',
 
   'goalIcon.dumbbell': '健身',

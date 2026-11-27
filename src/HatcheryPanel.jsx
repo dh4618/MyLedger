@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { X, Sparkles } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import { useLang } from './i18n/LanguageProvider';
 import Pixel from './Pixel';
-import { spriteFor, hasAltFrame, MYSTERY_EGG, PIXEL_STAR, PIXEL_STAR_SMALL, PIXEL_NEST, PIXEL_BALL } from './pixels';
-import { stars, collection, activeEntry, progressOf, nextStage, stageOf, album, isPinned, residents, knownSpecies, seedAt, seedFromId, EGG_PRICE, FEED_COST } from './game';
+import { spriteFor, hasAltFrame, MYSTERY_EGG, PIXEL_STAR_SMALL, PIXEL_NEST, PIXEL_BALL } from './pixels';
+import { stars, collection, activeEntry, progressOf, nextStage, stageOf, album, isPinned, residents, knownSpecies, seedAt, seedFromId, FEED_COST } from './game';
 
 // The room has two halves, and which half a resident stands in is the point of them:
 // eggs wait in the nest, hatched creatures play on the mat. Both the art and the
@@ -88,7 +88,7 @@ const inNest = (zone, seed, index, count) => ({
 //
 // The panel only ever reads the task log. Nothing in here can tick a task, which is
 // what keeps the report and the streak honest while this sits on top of them.
-export default function HatcheryPanel({ game, total, onBuy, onOpen, onSelect, onFeed, onPin, onUnpin, onClose }) {
+export default function HatcheryPanel({ game, total, onOpen, onSelect, onFeed, onPin, onUnpin }) {
   const { t } = useLang();
   const { balance } = stars(game, total);
   const active = activeEntry(game);
@@ -98,7 +98,6 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onSelect, on
   // Which egg is which in the row: a map rather than an indexOf per egg, so adding a
   // tenth egg doesn't quietly make this quadratic.
   const eggIndex = new Map(living.filter((w) => !w.walks).map((w, i) => [w.id, i]));
-  const canBuy = balance >= EGG_PRICE;
 
   const activeProgress = progressOf(active);
   const step = active ? nextStage(activeProgress) : null;
@@ -140,277 +139,246 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onSelect, on
   }, [tada]);
 
   return (
-    <div className="dt-manage-panel" onClick={onClose}>
-      <div className="dt-manage-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="dt-modal-title">
-          {t('game.title')}
-          <button className="dt-icon-btn" onClick={onClose}><X size={20} /></button>
+    /* A tab's page, not a sheet pulled up over the day. No title row and no close
+       button: the tab bar says where you are, and there is nothing to close. */
+    <div className="dt-page">
+      {/* ---- the room ---- */}
+      {/* The zone table is handed to CSS as custom properties rather than written out
+          a second time in the stylesheet, so the nest cannot drift away from the eggs
+          standing in it. */}
+      <div
+        className="dt-habitat"
+        style={{
+          '--hatch-left': `${ZONES.hatch.left}%`,
+          '--hatch-width': `${ZONES.hatch.width}%`,
+          '--play-left': `${ZONES.play.left}%`,
+          '--play-width': `${ZONES.play.width}%`,
+        }}
+      >
+        {/* Scenery. All of it decoration: it carries no state, nothing can be tapped,
+            and it is hidden from assistive tech — the residents below are the content.
+            Wall, rail and floor are CSS because flat bands and a checker are cheaper
+            as hard-stop gradients than as sprite rows; the nest and the ball are
+            sprites because shapes aren't. */}
+        <div className="dt-room-wall" aria-hidden="true" />
+        <div className="dt-room-rail" aria-hidden="true" />
+        <div className="dt-room-floor" aria-hidden="true" />
+        <div className="dt-room-mat" aria-hidden="true" />
+        <div className="dt-room-nest" aria-hidden="true">
+          <Pixel sprite={PIXEL_NEST} size={80} />
+        </div>
+        <div className="dt-room-ball" aria-hidden="true">
+          <Pixel sprite={PIXEL_BALL} size={18} />
         </div>
 
-        {/* ---- the room ---- */}
-        {/* The zone table is handed to CSS as custom properties rather than written out
-            a second time in the stylesheet, so the nest cannot drift away from the eggs
-            standing in it. */}
-        <div
-          className="dt-habitat"
-          style={{
-            '--hatch-left': `${ZONES.hatch.left}%`,
-            '--hatch-width': `${ZONES.hatch.width}%`,
-            '--play-left': `${ZONES.play.left}%`,
-            '--play-width': `${ZONES.play.width}%`,
-          }}
-        >
-          {/* Scenery. All of it decoration: it carries no state, nothing can be tapped,
-              and it is hidden from assistive tech — the residents below are the content.
-              Wall, rail and floor are CSS because flat bands and a checker are cheaper
-              as hard-stop gradients than as sprite rows; the nest and the ball are
-              sprites because shapes aren't. */}
-          <div className="dt-room-wall" aria-hidden="true" />
-          <div className="dt-room-rail" aria-hidden="true" />
-          <div className="dt-room-floor" aria-hidden="true" />
-          <div className="dt-room-mat" aria-hidden="true" />
-          <div className="dt-room-nest" aria-hidden="true">
-            <Pixel sprite={PIXEL_NEST} size={80} />
-          </div>
-          <div className="dt-room-ball" aria-hidden="true">
-            <Pixel sprite={PIXEL_BALL} size={18} />
-          </div>
-
-          {living.length === 0 ? (
-            <div className="dt-habitat-empty">{t('game.habitatEmpty')}</div>
-          ) : living.map((who) => {
-            // A creature's spot and gait come off its id-derived seed, so it keeps both
-            // between renders instead of teleporting on every repaint. Eggs get a place
-            // in the nest and no walk — eggs don't walk.
-            const { left, top } = who.walks
-              ? scatter(ZONES.play, who.seed)
-              : inNest(ZONES.hatch, who.seed, eggIndex.get(who.id), eggIndex.size);
-            const sprite = spriteFor(who.species, who.stage);
-            const duration = 7 + (seedAt(who.seed, 3) % 9);
-            const delay = -(seedAt(who.seed, 4) % 11);
-            const drift = 18 + (seedAt(who.seed, 5) % 20);
-            return (
-              <div
-                key={who.id}
-                className={`dt-resident ${who.walks ? 'walks' : ''} ${who.isActive ? 'active' : ''}`}
-                style={{
-                  left: `${left}%`,
-                  top: `${top}%`,
-                  // Painter's order: whoever is standing further down the room is
-                  // nearer, so they overlap the ones behind. Two creatures sharing a
-                  // patch of mat then read as one in front of the other rather than
-                  // as a drawing order nobody chose.
-                  zIndex: Math.round(top),
-                  '--drift': `${drift}%`,
-                  '--walk-dur': `${duration}s`,
-                  '--walk-delay': `${delay}s`,
-                }}
-                title={`${creatureName(who.species)} · ${stageName(who.stage)}`}
-              >
-                {/* The wander is on the inner element so the outer can keep the
-                    half-width offset that centres the sprite on its spot — one
-                    transform cannot do both. */}
-                <div className="dt-resident-body">
-                  <Pet sprite={sprite} size={RESIDENT_PX} seed={who.seed} label={creatureName(who.species)} />
-                </div>
+        {living.length === 0 ? (
+          <div className="dt-habitat-empty">{t('game.habitatEmpty')}</div>
+        ) : living.map((who) => {
+          // A creature's spot and gait come off its id-derived seed, so it keeps both
+          // between renders instead of teleporting on every repaint. Eggs get a place
+          // in the nest and no walk — eggs don't walk.
+          const { left, top } = who.walks
+            ? scatter(ZONES.play, who.seed)
+            : inNest(ZONES.hatch, who.seed, eggIndex.get(who.id), eggIndex.size);
+          const sprite = spriteFor(who.species, who.stage);
+          const duration = 7 + (seedAt(who.seed, 3) % 9);
+          const delay = -(seedAt(who.seed, 4) % 11);
+          const drift = 18 + (seedAt(who.seed, 5) % 20);
+          return (
+            <div
+              key={who.id}
+              className={`dt-resident ${who.walks ? 'walks' : ''} ${who.isActive ? 'active' : ''}`}
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                // Painter's order: whoever is standing further down the room is
+                // nearer, so they overlap the ones behind. Two creatures sharing a
+                // patch of mat then read as one in front of the other rather than
+                // as a drawing order nobody chose.
+                zIndex: Math.round(top),
+                '--drift': `${drift}%`,
+                '--walk-dur': `${duration}s`,
+                '--walk-delay': `${delay}s`,
+              }}
+              title={`${creatureName(who.species)} · ${stageName(who.stage)}`}
+            >
+              {/* The wander is on the inner element so the outer can keep the
+                  half-width offset that centres the sprite on its spot — one
+                  transform cannot do both. */}
+              <div className="dt-resident-body">
+                <Pet sprite={sprite} size={RESIDENT_PX} seed={who.seed} label={creatureName(who.species)} />
               </div>
-            );
-          })}
-        </div>
-
-        <div className="dt-stars">
-          <Pixel sprite={PIXEL_STAR} size={18} />
-          <span className="dt-stars-count">{balance}</span>
-          <span className="dt-stars-label">{t('game.starsLabel')}</span>
-        </div>
-        <div className="dt-hint" style={{ marginTop: 0 }}>{t('game.starsHint')}</div>
-
-        {/* ---- the slot ---- */}
-        <div className="dt-field-label" style={{ marginTop: 20 }}>{t('game.raising')}</div>
-        {active ? (
-          <div className="dt-raise-card">
-            {/* The one you are raising blinks too — it is the pet you are looking at
-                while you feed it. Canvas-fit, like the room, so it is a touch larger
-                a number than the 72 a cropped sprite used to be given, so an egg still fills the slot. */}
-            <Pet
-              sprite={spriteFor(active.species, activeStage)}
-              size={104}
-              seed={seedFromId(active.id)}
-              label={creatureName(active.species)}
-            />
-            <div className="dt-raise-body">
-              <div className="dt-raise-name">{creatureName(active.species)}</div>
-              <div className="dt-raise-stage">{stageName(activeStage)}</div>
-              {step ? (
-                <>
-                  <div className="dt-raise-track">
-                    <div className="dt-raise-fill" style={{ width: `${Math.round((step.done / step.need) * 100)}%` }} />
-                  </div>
-                  <div className="dt-raise-meta">
-                    {t('game.toNext', { done: step.done, need: step.need, stage: stageName(step.into) })}
-                  </div>
-                </>
-              ) : (
-                <div className="dt-raise-meta">{t('game.fullyGrown')}</div>
-              )}
-              {/* Feeding is the only button here. Raise and Put down used to flank it
-                  — tapping a pet in the collection is both of those now, so the slot
-                  is simply whichever one you picked. Disabled for exactly the reasons
-                  feed() refuses, and absent entirely once there is nothing to grow. */}
-              {step && (
-                <div className="dt-raise-actions">
-                  <button className="dt-feed-btn" disabled={!canFeed} onClick={onFeed}>
-                    {t('game.feed')} <Pixel sprite={PIXEL_STAR_SMALL} size={14} /> {FEED_COST}
-                  </button>
-                </div>
-              )}
-              {step && !canFeed && (
-                <div className="dt-raise-meta">{t('game.needMore', { n: FEED_COST - balance })}</div>
-              )}
             </div>
-          </div>
-        ) : (
-          <div className="dt-empty-manage" style={{ padding: '10px 0' }}>{t('game.nothingRaising')}</div>
-        )}
-
-        {/* ---- the store ---- */}
-        <div className="dt-field-label" style={{ marginTop: 20 }}>{t('game.store')}</div>
-        <div className="dt-shop-card">
-          <Pixel sprite={MYSTERY_EGG} size={56} label={t('game.mysteryEgg')} className="dt-mystery" />
-          <div className="dt-shop-body">
-            <div className="dt-raise-name">{t('game.mysteryEgg')}</div>
-          </div>
-          <button className="dt-buy-btn" disabled={!canBuy} onClick={onBuy}>
-            <Pixel sprite={PIXEL_STAR_SMALL} size={14} /> {EGG_PRICE}
-          </button>
-        </div>
-        {!canBuy && (
-          <div className="dt-hint" style={{ marginTop: 6 }}>
-            {t('game.needMore', { n: EGG_PRICE - balance })}
-          </div>
-        )}
-
-        {/* ---- what you own ---- */}
-        <div className="dt-field-label" style={{ marginTop: 20 }}>{t('game.collection')}</div>
-        {rows.length === 0
-          ? <div className="dt-empty-manage" style={{ padding: '10px 0' }}>{t('game.collectionEmpty')}</div>
-          /* The Raise button used to say what a card was for. Tapping one does not, so
-             this does. */
-          : <div className="dt-hint" style={{ marginTop: 0, marginBottom: 8 }}>{t('game.collectionHint')}</div>}
-        <div className="dt-collection">
-          {rows.map((row) => {
-            const unopened = !row.species;
-            const isActive = game.activeId === row.id;
-            const grown = !unopened && !nextStage(row.progress);
-            const body = (
-              <>
-                <Pixel
-                  sprite={unopened ? MYSTERY_EGG : spriteFor(row.species, row.stage)}
-                  size={54}
-                  label={unopened ? t('game.mysteryEgg') : creatureName(row.species)}
-                />
-                <div className="dt-creature-name">
-                  {unopened ? t('game.unopened') : creatureName(row.species)}
-                </div>
-                <div className="dt-creature-stage">
-                  {unopened ? '···' : stageName(row.stage)}
-                </div>
-              </>
-            );
-            // An unopened egg stays a plain card, because it holds the Open button and
-            // a button inside a button is not a thing. Everything else *is* the button:
-            // tapping a pet puts it on show, which is all choosing one means now.
-            if (unopened) {
-              return (
-                <div key={row.id} className="dt-creature-card">
-                  {body}
-                  <button className="dt-preset-btn" onClick={() => onOpen(row.id)}>
-                    <Sparkles size={13} /> {t('game.open')}
-                  </button>
-                </div>
-              );
-            }
-            return (
-              <button
-                key={row.id}
-                type="button"
-                className={`dt-creature-card ${isActive ? 'active' : ''}`}
-                aria-pressed={isActive}
-                onClick={() => onSelect(row.id)}
-              >
-                {body}
-                {/* The ring already says which one is on show; this says why there is
-                    no Feed button under a creature that has finished growing. */}
-                {grown ? (
-                  <div className="dt-creature-flag done">{t('game.fullyGrown')}</div>
-                ) : isActive ? (
-                  <div className="dt-creature-flag">{t('game.raisingNow')}</div>
-                ) : null}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* ---- the album ---- */}
-        <div className="dt-field-label" style={{ marginTop: 20 }}>{t('game.album')}</div>
-        {pictures.length === 0 ? (
-          <div className="dt-empty-manage" style={{ padding: '10px 0' }}>{t('game.albumEmpty')}</div>
-        ) : (
-          <>
-            {/* Says which of the two modes the icon is in, so "nothing is ringed" reads
-                as "following your pet" rather than as nothing having been set. */}
-            <div className="dt-hint" style={{ marginTop: 0 }}>
-              {game.icon ? t('game.pinHint') : t('game.following')}
-            </div>
-            {pictures.map((row) => (
-              <div key={row.species} className="dt-album-row">
-                <div className="dt-album-species">{creatureName(row.species)}</div>
-                <div className="dt-album-stages">
-                  {row.stages.map((stage) => {
-                    const pinned = isPinned(game, row.species, stage);
-                    return (
-                      <button
-                        key={stage}
-                        className={`dt-album-shot ${pinned ? 'pinned' : ''}`}
-                        aria-pressed={pinned}
-                        title={`${creatureName(row.species)} · ${stageName(stage)}`}
-                        onClick={() => (pinned ? onUnpin() : onPin(row.species, stage))}
-                      >
-                        <Pixel sprite={spriteFor(row.species, stage)} size={40} />
-                        <span className="dt-album-stage">{stageName(stage)}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </>
-        )}
+          );
+        })}
       </div>
 
-      {/* ---- ta-da ----
-          Over the whole panel rather than inside the card, because a stage change is
-          the thing the stars were for and it deserves the screen for two seconds. The
-          sprite is the new one, so hatching reveals both the animal and its name here
-          — which is the first time either has been shown. */}
-      {tada && (
-        <div className="dt-tada" onClick={(e) => { e.stopPropagation(); setTada(null); }} role="status">
-          <div className="dt-tada-card">
-            <div className="dt-tada-burst" aria-hidden="true">
-              {/* Eight sparks on the compass points, flung out and gone. Plain divs:
-                  a spark is one square, and a sprite for that would be a sprite of a
-                  square. */}
-              {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-                <span key={i} className="dt-tada-spark" style={{ '--angle': `${i * 45}deg` }} />
-              ))}
-              <Pixel sprite={spriteFor(tada.species, tada.stage)} size={96} label={creatureName(tada.species)} />
-            </div>
-            <div className="dt-tada-word">{t('game.tada')}</div>
-            <div className="dt-tada-name">{creatureName(tada.species)}</div>
-            <div className="dt-tada-stage">{stageName(tada.stage)}</div>
+      {/* ---- the slot ---- */}
+      <div className="dt-field-label" style={{ marginTop: 18 }}>{t('game.raising')}</div>
+      {active ? (
+        <div className="dt-raise-card">
+          {/* The one you are raising blinks too — it is the pet you are looking at
+              while you feed it. Canvas-fit, like the room, so it is a touch larger
+              a number than the 72 a cropped sprite used to be given, so an egg still fills the slot. */}
+          <Pet
+            sprite={spriteFor(active.species, activeStage)}
+            size={104}
+            seed={seedFromId(active.id)}
+            label={creatureName(active.species)}
+          />
+          <div className="dt-raise-body">
+            <div className="dt-raise-name">{creatureName(active.species)}</div>
+            <div className="dt-raise-stage">{stageName(activeStage)}</div>
+            {step ? (
+              <>
+                <div className="dt-raise-track">
+                  <div className="dt-raise-fill" style={{ width: `${Math.round((step.done / step.need) * 100)}%` }} />
+                </div>
+                <div className="dt-raise-meta">
+                  {t('game.toNext', { done: step.done, need: step.need, stage: stageName(step.into) })}
+                </div>
+              </>
+            ) : (
+              <div className="dt-raise-meta">{t('game.fullyGrown')}</div>
+            )}
+            {/* Feeding is the only button here. Raise and Put down used to flank it
+                — tapping a pet in the collection is both of those now, so the slot
+                is simply whichever one you picked. Disabled for exactly the reasons
+                feed() refuses, and absent entirely once there is nothing to grow. */}
+            {step && (
+              <div className="dt-raise-actions">
+                <button className="dt-feed-btn" disabled={!canFeed} onClick={onFeed}>
+                  {t('game.feed')} <Pixel sprite={PIXEL_STAR_SMALL} size={14} /> {FEED_COST}
+                </button>
+              </div>
+            )}
+            {step && !canFeed && (
+              <div className="dt-raise-meta">{t('game.needMore', { n: FEED_COST - balance })}</div>
+            )}
           </div>
         </div>
+      ) : (
+        <div className="dt-empty-manage" style={{ padding: '10px 0' }}>{t('game.nothingRaising')}</div>
       )}
+
+      {/* ---- what you own ---- */}
+      <div className="dt-field-label" style={{ marginTop: 20 }}>{t('game.collection')}</div>
+      {rows.length === 0
+        ? <div className="dt-empty-manage" style={{ padding: '10px 0' }}>{t('game.collectionEmpty')}</div>
+        /* The Raise button used to say what a card was for. Tapping one does not, so
+           this does. */
+        : <div className="dt-hint" style={{ marginTop: 0, marginBottom: 8 }}>{t('game.collectionHint')}</div>}
+      <div className="dt-collection">
+        {rows.map((row) => {
+          const unopened = !row.species;
+          const isActive = game.activeId === row.id;
+          const grown = !unopened && !nextStage(row.progress);
+          const body = (
+            <>
+              <Pixel
+                sprite={unopened ? MYSTERY_EGG : spriteFor(row.species, row.stage)}
+                size={54}
+                label={unopened ? t('game.mysteryEgg') : creatureName(row.species)}
+              />
+              <div className="dt-creature-name">
+                {unopened ? t('game.unopened') : creatureName(row.species)}
+              </div>
+              <div className="dt-creature-stage">
+                {unopened ? '···' : stageName(row.stage)}
+              </div>
+            </>
+          );
+          // An unopened egg stays a plain card, because it holds the Open button and
+          // a button inside a button is not a thing. Everything else *is* the button:
+          // tapping a pet puts it on show, which is all choosing one means now.
+          if (unopened) {
+            return (
+              <div key={row.id} className="dt-creature-card">
+                {body}
+                <button className="dt-preset-btn" onClick={() => onOpen(row.id)}>
+                  <Sparkles size={13} /> {t('game.open')}
+                </button>
+              </div>
+            );
+          }
+          return (
+            <button
+              key={row.id}
+              type="button"
+              className={`dt-creature-card ${isActive ? 'active' : ''}`}
+              aria-pressed={isActive}
+              onClick={() => onSelect(row.id)}
+            >
+              {body}
+              {/* No "raising now" here: the pet that is selected is the one shown
+                  under Raising, and saying it twice makes the grid noisier without
+                  saying anything the ring does not. "Fully grown" stays, because it
+                  is about the creature rather than about which one you picked. */}
+              {grown && <div className="dt-creature-flag done">{t('game.fullyGrown')}</div>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ---- the album ---- */}
+      <div className="dt-field-label" style={{ marginTop: 20 }}>{t('game.album')}</div>
+      {pictures.length === 0 ? (
+        <div className="dt-empty-manage" style={{ padding: '10px 0' }}>{t('game.albumEmpty')}</div>
+      ) : (
+        <>
+          {/* Says which of the two modes the icon is in, so "nothing is ringed" reads
+              as "following your pet" rather than as nothing having been set. */}
+          <div className="dt-hint" style={{ marginTop: 0 }}>
+            {game.icon ? t('game.pinHint') : t('game.following')}
+          </div>
+          {pictures.map((row) => (
+            <div key={row.species} className="dt-album-row">
+              <div className="dt-album-species">{creatureName(row.species)}</div>
+              <div className="dt-album-stages">
+                {row.stages.map((stage) => {
+                  const pinned = isPinned(game, row.species, stage);
+                  return (
+                    <button
+                      key={stage}
+                      className={`dt-album-shot ${pinned ? 'pinned' : ''}`}
+                      aria-pressed={pinned}
+                      title={`${creatureName(row.species)} · ${stageName(stage)}`}
+                      onClick={() => (pinned ? onUnpin() : onPin(row.species, stage))}
+                    >
+                      <Pixel sprite={spriteFor(row.species, stage)} size={40} />
+                      <span className="dt-album-stage">{stageName(stage)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </>
+      )}
+
+    {/* ---- ta-da ----
+        Over the whole panel rather than inside the card, because a stage change is
+        the thing the stars were for and it deserves the screen for two seconds. The
+        sprite is the new one, so hatching reveals both the animal and its name here
+        — which is the first time either has been shown. */}
+    {tada && (
+      <div className="dt-tada" onClick={(e) => { e.stopPropagation(); setTada(null); }} role="status">
+        <div className="dt-tada-card">
+          <div className="dt-tada-burst" aria-hidden="true">
+            {/* Eight sparks on the compass points, flung out and gone. Plain divs:
+                a spark is one square, and a sprite for that would be a sprite of a
+                square. */}
+            {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+              <span key={i} className="dt-tada-spark" style={{ '--angle': `${i * 45}deg` }} />
+            ))}
+            <Pixel sprite={spriteFor(tada.species, tada.stage)} size={96} label={creatureName(tada.species)} />
+          </div>
+          <div className="dt-tada-word">{t('game.tada')}</div>
+          <div className="dt-tada-name">{creatureName(tada.species)}</div>
+          <div className="dt-tada-stage">{stageName(tada.stage)}</div>
+        </div>
+      </div>
+    )}
     </div>
   );
 }
