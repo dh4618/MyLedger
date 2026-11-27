@@ -217,6 +217,15 @@ derived from which sheet was up. One `tab` state says it now.
 count lives in the header rather than on a page so it is there on every tab — and so a
 flying star always has somewhere to land.
 
+**The heading sticks.** The app's name, the star count and the gear stay at the top of
+every tab however far you scroll. That is why `.dt-topbar` is a sibling of `.dt-header`
+rather than a child of it: an element sticks only within its own parent's box, and the
+header is as tall as the week strip and no taller — inside it the brand would come
+unstuck after about two centimetres. Its parent is the whole page instead. It is opaque,
+or the page would show through it, and sits at `z-index: 40` — under the sheets and the
+tab bar, over everything that scrolls. The day's own heading is *not* sticky: the goal
+filters, the date and the week strip scroll away with the day they belong to.
+
 Three things have to agree about the bar's height: the page's bottom padding, the FAB's
 offset, and the bar itself. That's `--tabbar-h` in `src/theme.css`, so they can't drift
 apart.
@@ -288,7 +297,9 @@ or Inky — is inside.
 ### Feeding
 
 **Nothing grows by itself.** Completing a task earns a star and does nothing else; growth
-costs a star, spent on the **Feed** button, and one meal is one step of progress.
+costs a star, spent on the **Feed** button, and one meal is one step of progress. On an
+egg that button says **Hatch** — same star, same step, a different word for the one stage
+where feeding is the wrong verb.
 
 Growth used to accrue from the task count while something sat in the slot, which made the
 whole hatchery something that happened to you rather than something you did, and gave a
