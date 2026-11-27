@@ -890,11 +890,100 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 .dt-raise-body, .dt-shop-body { flex: 1; min-width: 0; }
 .dt-raise-name { font-size: 15px; font-weight: 600; }
 .dt-raise-stage { font-size: 12px; color: var(--accent); margin-top: 1px; }
-/* Why the name is ???: a withheld surprise, not a failure to load. */
-.dt-raise-hint { font-size: 11px; color: var(--muted); margin-top: 3px; }
 .dt-raise-track { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 8px; }
 .dt-raise-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s ease; }
 .dt-raise-meta { font-size: 12px; color: var(--muted); margin-top: 5px; }
+
+/* Feed is the primary action in the panel — it is the only way anything grows — so it
+   is the filled button and Put down is the quiet one beside it. */
+.dt-raise-actions { display: flex; gap: 8px; margin-top: 10px; }
+.dt-feed-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 4px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.dt-feed-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ---- Ta-da: a stage change ----
+   Over everything, because a stage change is what the stars were for. Above the star
+   flight (70) as well: feeding is a tap, and a star can be in the air from a tick a
+   moment earlier. */
+.dt-tada {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--bg) 76%, transparent);
+  animation: dt-tada-veil 0.2s steps(2, end);
+}
+@keyframes dt-tada-veil { from { opacity: 0; } to { opacity: 1; } }
+.dt-tada-card { text-align: center; }
+.dt-tada-burst {
+  position: relative;
+  display: inline-block;
+  animation: dt-tada-pop 0.55s steps(1, end);
+}
+/* Held frames, not a spring: small, big, settled. */
+@keyframes dt-tada-pop {
+  0%   { transform: scale(0.4); }
+  22%  { transform: scale(1.18); }
+  45%  { transform: scale(0.94); }
+  70%  { transform: scale(1); }
+  100% { transform: scale(1); }
+}
+/* Eight squares flung out along their own angles. rotate first, then translate, so one
+   keyframe set serves all eight and only --angle differs. */
+.dt-tada-spark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  background: var(--accent);
+  animation: dt-tada-spark 0.7s steps(1, end) forwards;
+}
+/* The radii clear the sprite rather than landing on it: the burst is centred on a
+   96px creature, so a spark that stops at 54px is sitting in its face. */
+@keyframes dt-tada-spark {
+  0%   { transform: rotate(var(--angle)) translateY(-20px); opacity: 0; }
+  14%  { transform: rotate(var(--angle)) translateY(-52px); opacity: 1; }
+  42%  { transform: rotate(var(--angle)) translateY(-80px); opacity: 1; }
+  70%  { transform: rotate(var(--angle)) translateY(-98px) scale(0.5); opacity: 1; }
+  100% { transform: rotate(var(--angle)) translateY(-110px) scale(0.5); opacity: 0; }
+}
+.dt-tada-word {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  letter-spacing: var(--display-tracking);
+  font-size: 30px;
+  color: var(--accent);
+  margin-top: 12px;
+  animation: dt-tada-word 0.5s steps(1, end);
+}
+@keyframes dt-tada-word {
+  0%   { transform: scale(0.6); opacity: 0; }
+  34%  { transform: scale(1.12); opacity: 1; }
+  62%  { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.dt-tada-name { margin-top: 2px; font-size: 16px; font-weight: 600; color: var(--ink); }
+.dt-tada-stage { margin-top: 1px; font-size: 13px; color: var(--muted); }
 
 /* The unopened egg reads as unknown rather than as one of the four. */
 .dt-mystery { opacity: 0.75; filter: grayscale(0.55); }
@@ -1127,16 +1216,6 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
   background: var(--room-trim);
   border-top: 2px solid var(--room-trim-edge);
 }
-/* Dotted the pixel way — a hard-stop gradient, not border-style: dashed, which sizes
-   its dashes to whatever happens to fit. */
-.dt-room-divider {
-  position: absolute;
-  top: 16px;
-  bottom: 12px;
-  left: calc(var(--hatch-left) + var(--hatch-width) + 2%);
-  width: 2px;
-  background: repeating-linear-gradient(to bottom, var(--room-trim-edge) 0 4px, transparent 4px 8px);
-}
 /* The play mat. Square corners on purpose, and a 3px double border, which is a 1px
    line, a 1px gap and a 1px line — a woven rug edge for free. */
 .dt-room-mat {
@@ -1157,18 +1236,6 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
   transform: translateX(-50%);
 }
 .dt-room-ball { position: absolute; right: 13%; bottom: 26px; }
-.dt-zone-label {
-  position: absolute;
-  top: 8px;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: color-mix(in srgb, var(--muted) 72%, var(--surface));
-}
-.dt-zone-label.hatch { left: var(--hatch-left); }
-.dt-zone-label.play { left: var(--play-left); }
-
 .dt-habitat-empty {
   position: absolute;
   inset: 0;
@@ -1202,6 +1269,23 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
   animation-iteration-count: infinite;
 }
 .dt-resident-body { position: relative; }
+/* The blink. Not eyelids: the sheet has no eyes-closed frames, and detecting eyes from
+   the pixel data would be guesswork on sixteen sprites — the frog's eyes, the cat's
+   muzzle and Inky's page are all the same white. This is the other idle every sprite
+   game has, a two-frame squash onto the feet, which at this size reads as a creature
+   doing something rather than standing still. Seeded per creature so three of them
+   don't breathe in unison. */
+.dt-resident.walks .dt-resident-blink {
+  display: block;
+  transform-origin: 50% 100%;
+  animation: dt-blink var(--blink-dur) steps(1, end) var(--blink-delay) infinite;
+}
+@keyframes dt-blink {
+  0%, 92% { transform: scaleY(1); }
+  94%     { transform: scaleY(0.86); }
+  97%     { transform: scaleY(1); }
+  100%    { transform: scaleY(1); }
+}
 /* On the body, not the outer: the marker follows the creature it marks. Square, like
    everything else in the room — a 5px circle in here is five rounded-off pixels. */
 .dt-resident.active .dt-resident-body::after {

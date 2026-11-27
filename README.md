@@ -276,9 +276,49 @@ The picker's preview cards carry `data-theme` on themselves, so each paints stra
 
 ## Hatchery
 
-The **Pet** tab. Completing a task earns a **star**; stars buy a **mystery egg**;
-opening it settles which of four creatures — Fox, Frog, Tabby Cat or Inky — is inside, and
-you raise it by carrying on with your day.
+The **Pet** tab. Completing a task earns a **star**; stars buy a **mystery egg** and the
+food that grows it; opening the egg settles which of four creatures — Fox, Frog, Tabby Cat
+or Inky — is inside.
+
+### Feeding
+
+**Nothing grows by itself.** Completing a task earns a star and does nothing else; growth
+costs a star, spent on the **Feed** button, and one meal is one step of progress.
+
+Growth used to accrue from the task count while something sat in the slot, which made the
+whole hatchery something that happened to you rather than something you did, and gave a
+completed task two separate rewards for no extra choice. Now the day's work becomes stars
+and the stars go on either a new egg or a bigger creature.
+
+That also took a whole class of state out of the model. `liveProgress(entry, game, total)`
+is gone, and with it `activeFrom` and the running `settle()` pass that re-derived
+transitions from the task count on every render: progress is on the entry, feeding writes
+it, and hatching and outgrowing the slot are settled on the spot. Seven functions that took
+a `total` they no longer read — `collection`, `album`, `hasPicture`, `pinIcon`, `iconFor`,
+`residents`, `knownSpecies` — lost the parameter, because a `total` they quietly ignored
+says the opposite of what is true.
+
+A save written under the old rules is **folded forward once** by `migrate()`: whatever auto
+growth had accrued is banked onto the pet, so nobody loses a creature's worth of progress to
+the change, and stars are untouched since none were ever spent on growing. `activeFrom` is
+the marker — it is in every old save and no new one, which is why `normalizeGame` carefully
+does *not* default it. Like `settle`, it returns its argument unchanged when there is nothing
+to do: minting a fresh object every call is what turned the caller's "persist if it changed"
+into an infinite render loop once before.
+
+### Ta-da
+
+A stage change — hatching, kid to young adult, young adult to adult — raises a **Ta-da!**
+over the whole panel for a couple of seconds: the new sprite popping in held frames, eight
+squares flung out along their own angles, then the name and the new stage. A tap dismisses
+it early. For a hatch it is also where the name is revealed, which is the first time either
+the animal or its name has been shown.
+
+It watches **every** owned entry's stage, not just the one in the slot. Reaching adult
+releases the slot in the same update that changes the stage, so anything hanging off the
+active entry would miss the last and best of the four transitions.
+
+### Not telling you what it is
 
 **Opening an egg does not tell you what it is.** The species is rolled and written down, but
 the name shows as `???` until one of that species has hatched: the name is the payoff for
@@ -290,14 +330,32 @@ the slot can't disagree about what you know.
 
 ### The room
 
-At the top of the tab is a **room**, with a **hatch zone** on the left and a **play zone** on
-the right. Eggs wait in the nest; hatched creatures play on the mat. Only hatched creatures
+At the top of the tab is a **room**, with a hatch half on the left and a play half on the
+right. Eggs wait in the nest; hatched creatures play on the mat. Only hatched creatures
 walk, an opened egg sits there so the room isn't empty while you're incubating, and an
 unopened one stays out of it because you don't know what's in it.
+
+**The two halves are a concept, not furniture.** Neither is captioned and nothing is drawn
+between them: where the nest and the mat are is what says it, and a label on each would be
+the app explaining its own furniture. There are no words in the room at all.
 
 The zone table lives in `HatcheryPanel` and is handed to CSS as custom properties rather than
 written out twice, so the nest is drawn at the middle of the band eggs stand in and the two
 can't drift apart as the layout is tuned.
+
+**Creatures blink.** Not eyelids — the sheet has no eyes-closed frames, and detecting eyes
+from the pixel data would be guesswork across sixteen sprites, since the frog's eyes, the
+cat's muzzle and Inky's page are all the same white. It is the other idle every sprite game
+has, a two-frame squash onto the feet every few seconds, which at this size reads as a
+creature doing something rather than standing still. The period and offset are seeded per
+creature, in **tenths** of a second: six possible periods and seven possible offsets is 42
+combinations, and three creatures found a collision on the first try — the same lesson as
+the stacked residents, one layer down.
+
+That is a third nested element. Each of the three carries one transform, because an element
+has only the one and the later animation would simply replace the earlier: the outer holds
+the half-width offset that centres the sprite on its spot, the body wanders, the innermost
+blinks.
 
 **Eggs are laid out, creatures are scattered.** A creature's spot, roam and gait all come from
 a hash of its id, so it keeps them across re-renders instead of teleporting on every repaint.
@@ -320,12 +378,13 @@ grouted tiles say wall and floor instead.
 
 ### Pacing and price
 
-Pacing is `STAGE_STEPS` in `src/game.js`: **5 tasks** to hatch, **10 more** to young adult,
+Pacing is `STAGE_STEPS` in `src/game.js`: **5 meals** to hatch, **10 more** to young adult,
 **15 more** to adult — thirty for a full-grown creature, each stage asking more than the
 last. `STAGE_AT` is derived from it, so the thresholds have one source of truth.
 
 `EGG_PRICE` is what an egg costs: **10 stars**, enough that the first one is something you
-work towards, which is what makes buying it worth anything.
+work towards, which is what makes buying it worth anything. `FEED_COST` is what a meal
+costs: **1 star**, so a creature raised from egg to adult is forty tasks all told.
 
 > **Both are currently turned down for testing**: `STAGE_STEPS` is `[1, 1, 1]` and
 > `EGG_PRICE` is `1`, so the whole loop runs in a handful of taps. Put them back to
@@ -390,10 +449,15 @@ over a row would eat the tap, and ticking three things quickly would miss.
 something to celebrate. And under `prefers-reduced-motion` no star is launched at all — the
 count still updates, it just arrives without the journey.
 
-**Stars are derived, never banked.** `earned = (tasks completed ever) − baseline`, where the
-baseline is the completed-task count captured once, the first time the hatchery runs. That
-is how stars start at zero without a migration, and it means unticking a task takes its star
-back — the balance is a view of the log, not a parallel ledger that can disagree with it.
+**Stars are derived, never banked.** `balance = (tasks completed ever) − baseline − spent`,
+where the baseline is the completed-task count captured once, the first time the hatchery
+runs, and `spent` is eggs bought plus meals fed. That is how stars start at zero without a
+migration, and it means unticking a task takes its star back — the balance is a view of the
+log less what you have bought with it, not a parallel ledger that can disagree with it.
+
+Growth, by contrast, **is** banked, and deliberately so. Untick a task after feeding and you
+go a star down; the meal is not regurgitated. Growth is what you bought with the star, and
+buying is the one thing in the app that is not a view of the log.
 
 Counting uses `completed[id] === true`, not key presence. Unticking writes `false` rather
 than deleting, so counting keys would pay you for work you undid — the same trap the streak
@@ -401,9 +465,10 @@ hit.
 
 **One slot.** Eggs you own sit dormant until you choose one, and while something is in the
 slot nothing else may enter. The slot holds a growing creature too, not only an egg, or
-"one at a time" would quietly stop applying the moment something hatched. Putting something
-down banks its progress; picking it back up resumes from there, so a swap can neither
-double-count a task nor lose one.
+"one at a time" would quietly stop applying the moment something hatched. It is also where
+food goes. Putting something down keeps everything it has eaten — there is nothing to bank,
+since feeding writes progress the moment it happens — and picking it back up resumes from
+exactly there.
 
 **Nothing here can tick a task.** The hatchery reads the log and never writes to it, so the
 report and the streak stay true no matter what happens in the game. There is a test that

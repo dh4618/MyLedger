@@ -1,15 +1,17 @@
-import React from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Sparkles } from 'lucide-react';
 import { useLang } from './i18n/LanguageProvider';
 import Pixel from './Pixel';
 import { spriteFor, MYSTERY_EGG, PIXEL_STAR, PIXEL_STAR_SMALL, PIXEL_NEST, PIXEL_BALL } from './pixels';
-import { stars, collection, activeEntry, liveProgress, nextStage, stageOf, album, isPinned, residents, knownSpecies, seedAt, EGG_PRICE } from './game';
+import { stars, collection, activeEntry, progressOf, nextStage, stageOf, album, isPinned, residents, knownSpecies, seedAt, EGG_PRICE, FEED_COST } from './game';
 
 // The room has two halves, and which half a resident stands in is the point of them:
 // eggs wait in the nest, hatched creatures play on the mat. Both the art and the
 // residents are positioned from this one table — the nest is drawn where eggs stand
 // because they read the same numbers, not because two sets of percentages were kept
-// in step by hand.
+// in step by hand. The halves are not labelled and nothing is drawn between them:
+// where the nest and the mat are says it, and a caption on each would be the app
+// explaining its own furniture.
 //
 // `left`/`width` and `top`/`band` are percentages of the room. A sprite is 44px, about
 // 14% of the room's width, so the horizontal budget is the zone's width less that:
@@ -49,27 +51,56 @@ const inNest = (zone, seed, index, count) => ({
 //
 // The panel only ever reads the task log. Nothing in here can tick a task, which is
 // what keeps the report and the streak honest while this sits on top of them.
-export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onStop, onPin, onUnpin, onClose }) {
+export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onStop, onFeed, onPin, onUnpin, onClose }) {
   const { t } = useLang();
   const { balance } = stars(game, total);
   const active = activeEntry(game);
-  const rows = collection(game, total);
-  const pictures = album(game, total);
-  const living = residents(game, total);
+  const rows = useMemo(() => collection(game), [game]);
+  const pictures = album(game);
+  const living = residents(game);
   // Which egg is which in the row: a map rather than an indexOf per egg, so adding a
   // tenth egg doesn't quietly make this quadratic.
   const eggIndex = new Map(living.filter((w) => !w.walks).map((w, i) => [w.id, i]));
   const canBuy = balance >= EGG_PRICE;
 
-  const activeLive = active ? liveProgress(active, game, total) : 0;
-  const step = active ? nextStage(activeLive) : null;
-  const activeStage = active ? stageOf(activeLive) : null;
+  const activeProgress = progressOf(active);
+  const step = active ? nextStage(activeProgress) : null;
+  const activeStage = active ? stageOf(activeProgress) : null;
+  const canFeed = !!active && !!step && balance >= FEED_COST;
 
   // Every name in the panel comes through here, which is what makes "you don't know
   // what it is until it hatches" one rule rather than six places to keep in step.
-  const known = knownSpecies(game, total);
+  const known = knownSpecies(game);
   const creatureName = (species) => (known.has(species) ? t(`species.${species}`) : t('game.unknownName'));
   const stageName = (stage) => t(`stage.${stage}`);
+
+  // ---- ta-da ----
+  // Watches every owned entry's stage, not just the one in the slot: reaching adult
+  // releases the slot in the same update that changes the stage, so anything hanging
+  // off `active` would miss the last and best transition of the four.
+  const [tada, setTada] = useState(null);
+  const stages = useMemo(() => new Map(rows.map((r) => [r.id, r.stage])), [rows]);
+  const seen = useRef(null);
+  useEffect(() => {
+    const before = seen.current;
+    seen.current = stages;
+    // Nothing on the first pass: opening the panel is not a transition.
+    if (!before) return;
+    for (const [id, stage] of stages) {
+      if (before.has(id) && before.get(id) !== stage) {
+        const row = rows.find((r) => r.id === id);
+        setTada({ id, species: row.species, stage });
+        return;
+      }
+    }
+  }, [stages, rows]);
+  // Long enough to read the name, short enough not to need dismissing — though a tap
+  // closes it, because anything covering the screen should.
+  useEffect(() => {
+    if (!tada) return undefined;
+    const handle = setTimeout(() => setTada(null), 2200);
+    return () => clearTimeout(handle);
+  }, [tada]);
 
   return (
     <div className="dt-manage-panel" onClick={onClose}>
@@ -100,7 +131,6 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
           <div className="dt-room-wall" aria-hidden="true" />
           <div className="dt-room-rail" aria-hidden="true" />
           <div className="dt-room-floor" aria-hidden="true" />
-          <div className="dt-room-divider" aria-hidden="true" />
           <div className="dt-room-mat" aria-hidden="true" />
           <div className="dt-room-nest" aria-hidden="true">
             <Pixel sprite={PIXEL_NEST} size={80} />
@@ -108,8 +138,6 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
           <div className="dt-room-ball" aria-hidden="true">
             <Pixel sprite={PIXEL_BALL} size={18} />
           </div>
-          <div className="dt-zone-label hatch" aria-hidden="true">{t('game.zoneHatch')}</div>
-          <div className="dt-zone-label play" aria-hidden="true">{t('game.zonePlay')}</div>
 
           {living.length === 0 ? (
             <div className="dt-habitat-empty">{t('game.habitatEmpty')}</div>
@@ -123,6 +151,11 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
             const duration = 7 + (seedAt(who.seed, 3) % 9);
             const delay = -(seedAt(who.seed, 4) % 11);
             const drift = 18 + (seedAt(who.seed, 5) % 20);
+            // Out of phase with each other, or three creatures blink as one animal.
+            // Tenths of a second, not whole ones: six possible periods and seven
+            // possible offsets is 42 combinations, and three creatures found a
+            // collision on the first try.
+            const blink = 4 + (seedAt(who.seed, 6) % 41) / 10;
             return (
               <div
                 key={who.id}
@@ -133,14 +166,19 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
                   '--drift': `${drift}%`,
                   '--walk-dur': `${duration}s`,
                   '--walk-delay': `${delay}s`,
+                  '--blink-dur': `${blink}s`,
+                  '--blink-delay': `-${(seedAt(who.seed, 7) % 80) / 10}s`,
                 }}
                 title={`${creatureName(who.species)} · ${stageName(who.stage)}`}
               >
-                {/* The wander is on the inner element so the outer can keep the
-                    half-width offset that centres the sprite on its spot — one
-                    transform cannot do both. */}
+                {/* Three elements, one transform each: the outer holds the half-width
+                    offset that centres the sprite on its spot, the body wanders, and
+                    this one blinks. An element has only the one transform, and the
+                    later animation would simply replace the earlier. */}
                 <div className="dt-resident-body">
-                  <Pixel sprite={spriteFor(who.species, who.stage)} size={44} label={creatureName(who.species)} />
+                  <div className="dt-resident-blink">
+                    <Pixel sprite={spriteFor(who.species, who.stage)} size={44} label={creatureName(who.species)} />
+                  </div>
                 </div>
               </div>
             );
@@ -162,9 +200,6 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
             <div className="dt-raise-body">
               <div className="dt-raise-name">{creatureName(active.species)}</div>
               <div className="dt-raise-stage">{stageName(activeStage)}</div>
-              {/* Says why the name is withheld, so ??? reads as a surprise being kept
-                  rather than as something the app failed to load. */}
-              {activeStage === 'egg' && <div className="dt-raise-hint">{t('game.unknownHint')}</div>}
               {step ? (
                 <>
                   <div className="dt-raise-track">
@@ -177,7 +212,20 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
               ) : (
                 <div className="dt-raise-meta">{t('game.fullyGrown')}</div>
               )}
-              <button className="dt-preset-btn" style={{ marginTop: 8 }} onClick={onStop}>{t('game.putDown')}</button>
+              {/* Growing is the one thing you spend stars on besides a new egg, so it
+                  is the primary action here and Put down is the quiet one beside it.
+                  Disabled for exactly the reasons feed() refuses. */}
+              <div className="dt-raise-actions">
+                {step && (
+                  <button className="dt-feed-btn" disabled={!canFeed} onClick={onFeed}>
+                    {t('game.feed')} <Pixel sprite={PIXEL_STAR_SMALL} size={14} /> {FEED_COST}
+                  </button>
+                )}
+                <button className="dt-preset-btn" onClick={onStop}>{t('game.putDown')}</button>
+              </div>
+              {step && !canFeed && (
+                <div className="dt-raise-meta">{t('game.needMore', { n: FEED_COST - balance })}</div>
+              )}
             </div>
           </div>
         ) : (
@@ -190,7 +238,6 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
           <Pixel sprite={MYSTERY_EGG} size={56} label={t('game.mysteryEgg')} className="dt-mystery" />
           <div className="dt-shop-body">
             <div className="dt-raise-name">{t('game.mysteryEgg')}</div>
-            <div className="dt-raise-meta">{t('game.mysteryEggHint')}</div>
           </div>
           <button className="dt-buy-btn" disabled={!canBuy} onClick={onBuy}>
             <Pixel sprite={PIXEL_STAR_SMALL} size={14} /> {EGG_PRICE}
@@ -209,7 +256,7 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
           {rows.map((row) => {
             const unopened = !row.species;
             const isActive = game.activeId === row.id;
-            const grown = !unopened && !nextStage(row.live);
+            const grown = !unopened && !nextStage(row.progress);
             return (
               <div key={row.id} className={`dt-creature-card ${isActive ? 'active' : ''}`}>
                 <Pixel
@@ -282,6 +329,30 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
           </>
         )}
       </div>
+
+      {/* ---- ta-da ----
+          Over the whole panel rather than inside the card, because a stage change is
+          the thing the stars were for and it deserves the screen for two seconds. The
+          sprite is the new one, so hatching reveals both the animal and its name here
+          — which is the first time either has been shown. */}
+      {tada && (
+        <div className="dt-tada" onClick={(e) => { e.stopPropagation(); setTada(null); }} role="status">
+          <div className="dt-tada-card">
+            <div className="dt-tada-burst" aria-hidden="true">
+              {/* Eight sparks on the compass points, flung out and gone. Plain divs:
+                  a spark is one square, and a sprite for that would be a sprite of a
+                  square. */}
+              {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+                <span key={i} className="dt-tada-spark" style={{ '--angle': `${i * 45}deg` }} />
+              ))}
+              <Pixel sprite={spriteFor(tada.species, tada.stage)} size={96} label={creatureName(tada.species)} />
+            </div>
+            <div className="dt-tada-word">{t('game.tada')}</div>
+            <div className="dt-tada-name">{creatureName(tada.species)}</div>
+            <div className="dt-tada-stage">{stageName(tada.stage)}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

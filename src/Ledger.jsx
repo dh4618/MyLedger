@@ -19,7 +19,7 @@ import { genId } from './ids';
 import { toDateStr, fromDateStr, addDays, startOfWeek, daysInMonth, formatHeadline, formatShortDate, formatMonthYear } from './dates';
 import { computeStreak } from './streak';
 import { spriteFor, MYSTERY_EGG, PIXEL_STAR, PIXEL_STAR_SMALL, PIXEL_PLUS_ONE } from './pixels';
-import { emptyGame, normalizeGame, totalCompleted, stars, buyEgg, openEgg, startIncubating, bankActive, settle, iconFor, pinIcon, clearIcon } from './game';
+import { emptyGame, normalizeGame, totalCompleted, stars, buyEgg, openEgg, startIncubating, putDown, feed, migrate, iconFor, pinIcon, clearIcon } from './game';
 
 // Goal colours are no longer stored on the goal: they come from the palette, so
 // they change with the theme instead of being frozen hex from whenever the goal
@@ -378,13 +378,14 @@ export default function Ledger() {
   // reads `days`, so the report and the streak cannot be moved by anything in it.
   const completedTotal = useMemo(() => totalCompleted(days), [days]);
   const saveGame = (next) => { setGame(next); gameBlob.save(next); };
-  // Settling turns a hatched egg into a creature and releases a grown one. It runs
-  // where the counts are read rather than on a tick, so it is also correct after a
-  // reload, or on another device that has been counting all along.
-  const gameNow = useMemo(() => settle(game, completedTotal), [game, completedTotal]);
-  // settle returns the same object when there is nothing to do, so this only writes on
-  // a real transition — a hatch, or a grown creature releasing the slot.
-  useEffect(() => { if (gameNow !== game) saveGame(gameNow); }, [gameNow, game]);
+  // Growing is something you do now — feeding writes the progress and settles the
+  // consequences on the spot — so nothing here watches the task count except this one
+  // fold, which brings a save written under the old auto-growth rules up to date.
+  const gameNorm = useMemo(() => normalizeGame(game), [game]);
+  const gameNow = useMemo(() => migrate(gameNorm, completedTotal), [gameNorm, completedTotal]);
+  // migrate returns the same object when there is nothing to do, so this writes once,
+  // on the first load of an old save, and never again.
+  useEffect(() => { if (gameNow !== gameNorm) saveGame(gameNow); }, [gameNow, gameNorm]);
 
   // The baseline is written once, the first time the hatchery sees this account: until
   // it exists there is nothing to earn above, which is how stars start at zero without
@@ -396,11 +397,11 @@ export default function Ledger() {
     saveGame({ ...gameNow, baseline: completedTotal });
   }, [loading, gameNow, completedTotal]);
 
-  // The app's face: the picture you pinned, else whatever is being raised, else the
-  // most advanced thing owned, else an unopened egg — so a new account sees an egg and
-  // a reason to open the store. The order lives in game.js so the album can show which
-  // of those two modes it is in without re-deriving the rule.
-  const face = iconFor(gameNow, completedTotal);
+  // The app's face: the picture you pinned, or the generic egg. Nothing else sets it —
+  // it used to follow whatever you were raising, which meant the icon changed under you
+  // every time a creature grew. The rule lives in game.js so the album can show which
+  // of the two modes it is in without re-deriving it.
+  const face = iconFor(gameNow);
   const faceSprite = face ? spriteFor(face.species, face.stage) : MYSTERY_EGG;
 
   const starBalance = stars(gameNow, completedTotal).balance;
@@ -1490,12 +1491,15 @@ export default function Ledger() {
           total={completedTotal}
           onBuy={() => { const next = buyEgg(gameNow, completedTotal, genId()); if (next) saveGame(next); }}
           onOpen={(id) => { const next = openEgg(gameNow, id, Math.floor(Math.random() * 100000)); if (next) saveGame(next); }}
-          onStart={(id) => { const next = startIncubating(gameNow, id, completedTotal); if (next) saveGame(next); }}
-          onStop={() => saveGame(bankActive(gameNow, completedTotal))}
+          onStart={(id) => { const next = startIncubating(gameNow, id); if (next) saveGame(next); }}
+          onStop={() => saveGame(putDown(gameNow))}
+          /* One star, one step of growth. Returns null when it can't — no slot, no
+             stars, already grown — and the button is disabled for the same reasons. */
+          onFeed={() => { const next = feed(gameNow, completedTotal); if (next) saveGame(next); }}
           /* Tapping the pinned picture again clears it — without that, pinning once
              would make the follow-your-pet behaviour unreachable. */
           onPin={(species, stage) => {
-            const next = pinIcon(gameNow, completedTotal, species, stage);
+            const next = pinIcon(gameNow, species, stage);
             if (next) saveGame(next);
           }}
           onUnpin={() => saveGame(clearIcon(gameNow))}
