@@ -276,27 +276,123 @@ The picker's preview cards carry `data-theme` on themselves, so each paints stra
 
 ## Hatchery
 
-The **Pet** tab. Completing a task earns a **star**; stars buy a **mystery egg**;
-opening it reveals one of four creatures — Fox, Frog, Tabby Cat or Inky — and you raise it
-by carrying on with your day.
+The **Pet** tab. Completing a task earns a **star**; stars buy a **mystery egg** and the
+food that grows it; opening the egg settles which of four creatures — Fox, Frog, Tabby Cat
+or Inky — is inside.
 
-At the top of the tab is a **room**, where everything you have hatched mills about. Only
-hatched creatures walk; an opened egg sits there too, so the room isn't empty while you are
-incubating, and an unopened one stays out of it because you don't know what's in it.
+### Feeding
 
-Where each resident stands, how far it roams and how fast all come from a hash of its id,
-so it keeps its spot and its gait across re-renders instead of teleporting on every repaint.
+**Nothing grows by itself.** Completing a task earns a star and does nothing else; growth
+costs a star, spent on the **Feed** button, and one meal is one step of progress.
+
+Growth used to accrue from the task count while something sat in the slot, which made the
+whole hatchery something that happened to you rather than something you did, and gave a
+completed task two separate rewards for no extra choice. Now the day's work becomes stars
+and the stars go on either a new egg or a bigger creature.
+
+That also took a whole class of state out of the model. `liveProgress(entry, game, total)`
+is gone, and with it `activeFrom` and the running `settle()` pass that re-derived
+transitions from the task count on every render: progress is on the entry, feeding writes
+it, and hatching and outgrowing the slot are settled on the spot. Seven functions that took
+a `total` they no longer read — `collection`, `album`, `hasPicture`, `pinIcon`, `iconFor`,
+`residents`, `knownSpecies` — lost the parameter, because a `total` they quietly ignored
+says the opposite of what is true.
+
+A save written under the old rules is **folded forward once** by `migrate()`: whatever auto
+growth had accrued is banked onto the pet, so nobody loses a creature's worth of progress to
+the change, and stars are untouched since none were ever spent on growing. `activeFrom` is
+the marker — it is in every old save and no new one, which is why `normalizeGame` carefully
+does *not* default it. Like `settle`, it returns its argument unchanged when there is nothing
+to do: minting a fresh object every call is what turned the caller's "persist if it changed"
+into an infinite render loop once before.
+
+### Ta-da
+
+A stage change — hatching, kid to young adult, young adult to adult — raises a **Ta-da!**
+over the whole panel for a couple of seconds: the new sprite popping in held frames, eight
+squares flung out along their own angles, then the name and the new stage. A tap dismisses
+it early. For a hatch it is also where the name is revealed, which is the first time either
+the animal or its name has been shown.
+
+It watches **every** owned entry's stage, not just the one in the slot. Reaching adult
+releases the slot in the same update that changes the stage, so anything hanging off the
+active entry would miss the last and best of the four transitions.
+
+### Not telling you what it is
+
+**Opening an egg does not tell you what it is.** The species is rolled and written down, but
+the name shows as `???` until one of that species has hatched: the name is the payoff for
+hatching, not for buying. One hatched fox names foxes for good, so a second fox egg has
+nothing left to hide. That rule is `knownSpecies()` in `src/game.js`, derived like everything
+else here — "has one of these ever hatched" is just "is any of them past the egg stage" — and
+the panel routes every name through one function, so the room, the collection, the album and
+the slot can't disagree about what you know.
+
+### The room
+
+At the top of the tab is a **room**, with a hatch half on the left and a play half on the
+right. Eggs wait in the nest; hatched creatures play on the mat. Only hatched creatures
+walk, an opened egg sits there so the room isn't empty while you're incubating, and an
+unopened one stays out of it because you don't know what's in it.
+
+**The two halves are a concept, not furniture.** Neither is captioned and nothing is drawn
+between them: where the nest and the mat are is what says it, and a label on each would be
+the app explaining its own furniture. There are no words in the room at all.
+
+The zone table lives in `HatcheryPanel` and is handed to CSS as custom properties rather than
+written out twice, so the nest is drawn at the middle of the band eggs stand in and the two
+can't drift apart as the layout is tuned.
+
+**Creatures blink**, every few seconds, with their eyes actually closed: each sprite has a
+second drawn frame, and the blink is that frame laid over the first and uncovered for a
+sixth of a second. It can be revealed rather than cross-faded because the pair share a
+canvas and differ only in the eyes, so the top frame covers the one beneath wherever it is
+drawn at all — one animation, no second timeline to drift out of step.
+
+An egg has no eyes, so its second frame is the whole shape nudged a pixel: the same
+machinery **wobbles** it.
+
+The period and offset are seeded per creature, in **tenths** of a second. Whole seconds gave
+six periods and seven offsets, and three creatures found a collision on the first try — the
+same lesson as the stacked residents, one layer down.
+
+**The pet in the slot blinks too** — it is the one you are looking at while you feed it. Both
+places render the same `Pet` component and take their seed from `seedFromId`, so a creature
+keeps one rhythm whether you are watching it in the room or in the slot, rather than
+appearing twice on screen blinking at two different times.
+
+**Who is in front** follows who is standing lower: `z-index` is the resident's `top`, so two
+creatures sharing a patch of mat read as one in front of the other rather than as a drawing
+order nobody chose.
+
+**Eggs are laid out, creatures are scattered.** A creature's spot, roam and gait all come from
+a hash of its id, so it keeps them across re-renders instead of teleporting on every repaint.
 That hash is an **avalanche mix, not `h * 31 + char`**: `genId()` is a timestamp plus a short
 random suffix, so two creatures bought in the same session differ in a character or two, and
 a weak hash put them within a couple of percent of each other — the room looked like one
-stacked pile.
+stacked pile. Eggs get no hash for their x: they are spaced evenly across the nest in
+collection order, because seeded spots in a band that narrow piled two eggs on top of each
+other often enough to look like a bug, and eggs in a nest sit in a row anyway.
 
-Pacing is `STAGE_STEPS` in `src/game.js`: **5 tasks** to hatch, **10 more** to young adult,
+`left` is the **middle** of a resident, not its left edge — the sprites are 12 to 21 pixels
+wide, and a shared left edge put a tall thin egg and a wide cat in visibly different places
+within the same band. The wander animation is therefore on an inner element, since the outer
+is already using its transform to centre the sprite.
+
+Wall, rail and floor are hard-stop CSS gradients; the nest and ball are sprites. The first
+version tiled both surfaces with small alternating squares, which is the pattern every image
+editor uses to mean *nothing here* — the room read as a missing background. Striped paper and
+grouted tiles say wall and floor instead.
+
+### Pacing and price
+
+Pacing is `STAGE_STEPS` in `src/game.js`: **5 meals** to hatch, **10 more** to young adult,
 **15 more** to adult — thirty for a full-grown creature, each stage asking more than the
 last. `STAGE_AT` is derived from it, so the thresholds have one source of truth.
 
 `EGG_PRICE` is what an egg costs: **10 stars**, enough that the first one is something you
-work towards, which is what makes buying it worth anything.
+work towards, which is what makes buying it worth anything. `FEED_COST` is what a meal
+costs: **1 star**, so a creature raised from egg to adult is forty tasks all told.
 
 > **Both are currently turned down for testing**: `STAGE_STEPS` is `[1, 1, 1]` and
 > `EGG_PRICE` is `1`, so the whole loop runs in a handful of taps. Put them back to
@@ -310,7 +406,9 @@ a creature has passed through are implied by where it is now. A young adult fox 
 egg and a kid; an opened egg that hasn't hatched is just an egg; an unopened one contributes
 nothing, because you don't know what it is. Two creatures of the same species share one row.
 
-Only pictures you have actually collected appear — no locked silhouettes.
+Only pictures you have actually collected appear — no locked silhouettes. A row whose species
+hasn't hatched yet is headed `???` and holds the one egg picture, which is the album's half of
+the same rule the rest of the panel follows.
 
 Tapping a picture **pins** it as the app's face, in the header, the loading screen and the
 empty state. Tapping the pinned one again clears it.
@@ -327,8 +425,25 @@ can produce that, but a hand-edited blob can.
 ### Earning a star
 
 The **star total sits in the header**, so it's there on every tab and a flying star always
-has somewhere to land. Ticking a task launches one from the checkbox, carrying a **+1**, and
-the counter squeezes as it arrives.
+has somewhere to land. Ticking a task **throws** one from the checkbox, carrying a **+1**,
+and the counter squeezes as it arrives.
+
+**It is a throw, not a slide.** Three nested elements, one motion each: the outer carries the
+star along the straight line between the two points, the middle adds the rise and fall that
+bends that line into an arc, and the sprite does the pop and the blink. The lift is computed
+from the distance in `launchStar`, so a tick near the counter is a flick and one from the
+bottom of a long day is a proper lob. A single keyframe set would have to spell the parabola
+out position by position in px, with the height baked in.
+
+**The star and the +1 are drawn, not icons**, and the motion is **stepped** — the travel hops
+once per ~14px, the arc holds eight heights off `4t(1−t)`, the sprite scales only by whole
+multiples (3x, and 0.667 of that is 2x). Moving pixel art smoothly, in a lucide outline, is
+what made the old straight line read as a browser effect laid over the game rather than part
+of it. The counter it lands in is the same drawing.
+
+Every one of those keyframe sets finishes at **92%** and holds. `steps(n, end)` shows the
+value a segment *starts* at, so a two-keyframe animation would leave the star one step short
+of the counter and then be removed at `animationend`, having never drawn the arrival.
 
 **The flight delivers the increment**: the displayed number holds back however many stars
 are still in the air (`balance − flights.length`), so it goes up as each one lands rather
@@ -342,10 +457,15 @@ over a row would eat the tap, and ticking three things quickly would miss.
 something to celebrate. And under `prefers-reduced-motion` no star is launched at all — the
 count still updates, it just arrives without the journey.
 
-**Stars are derived, never banked.** `earned = (tasks completed ever) − baseline`, where the
-baseline is the completed-task count captured once, the first time the hatchery runs. That
-is how stars start at zero without a migration, and it means unticking a task takes its star
-back — the balance is a view of the log, not a parallel ledger that can disagree with it.
+**Stars are derived, never banked.** `balance = (tasks completed ever) − baseline − spent`,
+where the baseline is the completed-task count captured once, the first time the hatchery
+runs, and `spent` is eggs bought plus meals fed. That is how stars start at zero without a
+migration, and it means unticking a task takes its star back — the balance is a view of the
+log less what you have bought with it, not a parallel ledger that can disagree with it.
+
+Growth, by contrast, **is** banked, and deliberately so. Untick a task after feeding and you
+go a star down; the meal is not regurgitated. Growth is what you bought with the star, and
+buying is the one thing in the app that is not a view of the log.
 
 Counting uses `completed[id] === true`, not key presence. Unticking writes `false` rather
 than deleting, so counting keys would pay you for work you undid — the same trap the streak
@@ -353,9 +473,10 @@ hit.
 
 **One slot.** Eggs you own sit dormant until you choose one, and while something is in the
 slot nothing else may enter. The slot holds a growing creature too, not only an egg, or
-"one at a time" would quietly stop applying the moment something hatched. Putting something
-down banks its progress; picking it back up resumes from there, so a swap can neither
-double-count a task nor lose one.
+"one at a time" would quietly stop applying the moment something hatched. It is also where
+food goes. Putting something down keeps everything it has eaten — there is nothing to bank,
+since feeding writes progress the moment it happens — and picking it back up resumes from
+exactly there.
 
 **Nothing here can tick a task.** The hatchery reads the log and never writes to it, so the
 report and the streak stay true no matter what happens in the game. There is a test that
@@ -363,15 +484,55 @@ runs a month of game actions and asserts the `days` blob comes out byte-identica
 
 ### The art
 
-`src/pixels.js` holds all sixteen sprites as a palette plus one string per row — a few KB,
-no image requests, crisp at any size through `<Pixel>`, and a future Aseprite redraw
-replaces that one file. They keep their own palettes rather than being recoloured per theme:
-they are drawn artwork, and each carries its own outline, so they read on every palette.
+`src/pixels.js` holds all sixteen creature sprites — **two frames each** — as a palette plus
+one string per row. A few KB gzipped, no image requests, crisp at any size through `<Pixel>`,
+and a redraw replaces that one file. They keep their own palettes rather than being
+recoloured per theme: they are drawn artwork, and each carries its own outline, so they read
+on every palette. `alt` is the second frame against the same palette: eyes closed, or for an
+egg the whole shape nudged a pixel.
 
-If you ever regenerate them from a sheet: **do not decide transparency by colour.** The
-frog's eyes, the cat's muzzle and Inky's page are white *paint*, and a colour test reads
-them as holes — invisible on a light background, obvious on Dracula. Flood-fill from outside
-each sprite instead, so only white the fill can reach counts as background.
+It is generated from 32 transparent 24×24 PNGs, and **three properties of that source are
+load-bearing**. A redraw should keep all three:
+
+- **One canvas size for everything.** The frames of a pair then stack exactly, which is what
+  lets the blink be one drawing over another instead of a swap; and the stages sit at their
+  true relative sizes, a kid smaller than an adult because it is drawn smaller rather than
+  because `<Pixel>` was handed a number.
+- **Bottom-aligned.** Every creature stands on the canvas's last row, so one placement rule
+  puts any shape's feet on the floor.
+- **A real alpha channel.** The first set of these was recovered from a flat sheet, where
+  transparency had to be guessed by flood-filling from outside each sprite — deciding it by
+  colour got the frog's eyes, the cat's muzzle and Inky's page wrong, since those are white
+  *paint* rather than holes, which is invisible on a light background and obvious on Dracula.
+  With alpha there is nothing to guess.
+
+Because the canvas is uniform, `<Pixel>` has to be told which of two things `size` means.
+`fit="content"`, the default, crops to the drawn pixels so a picture **fills the slot it is
+given** — what a header icon, a shop row or an album thumbnail want, and what every sprite
+did implicitly back when they were stored pre-trimmed at sixteen different sizes. The room
+passes `fit="canvas"` to keep the whole frame, for the two reasons above: relative sizes, and
+frames that line up. Cropping an egg's wobble frame to its content would faithfully undo the
+wobble.
+
+Below the creatures, the same file holds the app's own **furniture**: the star, the `+1`, the
+nest, the ball. Those are the other way round — UI, not artwork, so they have to sit inside
+four palettes without looking pasted on, and their palettes are **CSS rather than hex**:
+`currentColor`, `var(--accent)`, `color-mix(...)`. `<Pixel>` renders a palette entry
+containing `(` as an inline style rather than a `fill` attribute; var() in a presentation
+attribute is thinly supported and silently paints black where it isn't.
+
+Two things learned drawing them, both visible in the comments:
+
+- **At nine pixels, silhouette is everything and shading is noise.** The star had a pale
+  highlight through its upper arm; mixed light enough to read as light, it was
+  indistinguishable from the background and the star looked notched. It is solid now.
+- **The reverse holds at twenty.** The nest was first a two-row basket weave, which at 4x was
+  a grey plank. Drawn as a bowl — dark rim, pale opening, body falling away, a sparse weave
+  inside a defined outline — it reads.
+
+Sprites are scaled by **whole multiples**. A 9-wide sprite at 14px renders some pixels 1px
+and some 2px, which on a shape that small is a lopsided star; that is why there is a separate
+7-wide `PIXEL_STAR_SMALL` for the 14px slots rather than a bad scale of the 9-wide one.
 
 ---
 

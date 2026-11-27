@@ -894,6 +894,97 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 .dt-raise-fill { height: 100%; background: var(--accent); border-radius: 3px; transition: width 0.3s ease; }
 .dt-raise-meta { font-size: 12px; color: var(--muted); margin-top: 5px; }
 
+/* Feed is the primary action in the panel — it is the only way anything grows — so it
+   is the filled button and Put down is the quiet one beside it. */
+.dt-raise-actions { display: flex; gap: 8px; margin-top: 10px; }
+.dt-feed-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 4px;
+  font-family: var(--font-ui);
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.dt-feed-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* ---- Ta-da: a stage change ----
+   Over everything, because a stage change is what the stars were for. Above the star
+   flight (70) as well: feeding is a tap, and a star can be in the air from a tick a
+   moment earlier. */
+.dt-tada {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--bg) 76%, transparent);
+  animation: dt-tada-veil 0.2s steps(2, end);
+}
+@keyframes dt-tada-veil { from { opacity: 0; } to { opacity: 1; } }
+.dt-tada-card { text-align: center; }
+.dt-tada-burst {
+  position: relative;
+  display: inline-block;
+  animation: dt-tada-pop 0.55s steps(1, end);
+}
+/* Held frames, not a spring: small, big, settled. */
+@keyframes dt-tada-pop {
+  0%   { transform: scale(0.4); }
+  22%  { transform: scale(1.18); }
+  45%  { transform: scale(0.94); }
+  70%  { transform: scale(1); }
+  100% { transform: scale(1); }
+}
+/* Eight squares flung out along their own angles. rotate first, then translate, so one
+   keyframe set serves all eight and only --angle differs. */
+.dt-tada-spark {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  margin: -3px 0 0 -3px;
+  background: var(--accent);
+  animation: dt-tada-spark 0.7s steps(1, end) forwards;
+}
+/* The radii clear the sprite rather than landing on it: the burst is centred on a
+   96px creature, so a spark that stops at 54px is sitting in its face. */
+@keyframes dt-tada-spark {
+  0%   { transform: rotate(var(--angle)) translateY(-20px); opacity: 0; }
+  14%  { transform: rotate(var(--angle)) translateY(-52px); opacity: 1; }
+  42%  { transform: rotate(var(--angle)) translateY(-80px); opacity: 1; }
+  70%  { transform: rotate(var(--angle)) translateY(-98px) scale(0.5); opacity: 1; }
+  100% { transform: rotate(var(--angle)) translateY(-110px) scale(0.5); opacity: 0; }
+}
+.dt-tada-word {
+  font-family: var(--font-display);
+  font-weight: var(--display-weight);
+  letter-spacing: var(--display-tracking);
+  font-size: 30px;
+  color: var(--accent);
+  margin-top: 12px;
+  animation: dt-tada-word 0.5s steps(1, end);
+}
+@keyframes dt-tada-word {
+  0%   { transform: scale(0.6); opacity: 0; }
+  34%  { transform: scale(1.12); opacity: 1; }
+  62%  { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.dt-tada-name { margin-top: 2px; font-size: 16px; font-weight: 600; color: var(--ink); }
+.dt-tada-stage { margin-top: 1px; font-size: 13px; color: var(--muted); }
+
 /* The unopened egg reads as unknown rather than as one of the four. */
 .dt-mystery { opacity: 0.75; filter: grayscale(0.55); }
 .dt-buy-btn {
@@ -929,34 +1020,88 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
   white-space: nowrap;
 }
 .dt-star-count svg { flex-shrink: 0; }
-/* A short squeeze as a star lands, so the number doesn't just silently tick over. */
-.dt-star-count.landed { animation: dt-star-land 0.4s var(--ease-bounce); }
+/* A short squeeze as a star lands, so the number doesn't just silently tick over.
+   Three held frames rather than a smooth bounce: the counter is made of pixels now,
+   and a sprite squashes on a frame boundary. */
+.dt-star-count.landed { animation: dt-star-land 0.36s steps(1, end); }
 @keyframes dt-star-land {
-  0% { transform: scale(1); }
-  40% { transform: scale(1.18); }
+  0%   { transform: scale(1); }
+  34%  { transform: scale(1.15); }
+  67%  { transform: scale(0.95); }
   100% { transform: scale(1); }
 }
 
-/* Fixed to the viewport because it travels between two elements in different stacking
+/* ---- The throw ----
+
+   Three nested elements, one motion each. A single keyframe set would have to spell
+   the parabola out position by position, in px, with the height baked in — and the
+   height has to follow the distance thrown.
+
+   .dt-star-flight  the straight line between checkbox and counter, at a constant rate
+   .dt-star-arc     the rise and fall that bends that line into an arc
+   .dt-star-sprite  the pop on launch and the blink on arrival
+
+   Fixed to the viewport because it travels between two elements in different stacking
    contexts. pointer-events: none matters: without it a star mid-flight eats the tap on
    whatever it passes over, and ticking three things quickly would miss. */
 .dt-star-flight {
   position: fixed;
   z-index: 70;
   pointer-events: none;
+  /* The step count arrives on the inline style — it is one hop per ~14px travelled, so
+     it depends on where the tap was. This `steps(14, end)` is only the fallback for a
+     flight rendered without it. */
+  animation: dt-star-fly 0.75s steps(14, end) forwards;
+}
+/* Every one of these three sets finishes at 92% and holds, which is not a detail:
+   `steps(n, end)` holds the value a keyframe segment *starts* at, so the last segment
+   of a two-keyframe animation would show the star one step short of the counter and
+   then be removed at animationend, having never drawn the arrival. Landing at 92%
+   leaves a last segment whose start value is the target, so the star is on the
+   counter for the final 60ms — which is the frame that matters. */
+@keyframes dt-star-fly {
+  0%   { transform: translate(-50%, -50%); }
+  92%  { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))); }
+  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))); }
+}
+
+/* Eight held heights off 4t(1-t) — the shape a thrown thing traces — rather than a
+   pair of eased halves. CSS will not apply `steps` and a per-keyframe easing to the
+   same segment, and in front of pixel art the stepped arc is the one that belongs:
+   the star hops along its path the way a sprite would. */
+.dt-star-arc { animation: dt-star-arc 0.75s steps(1, end) forwards; }
+@keyframes dt-star-arc {
+  0%    { transform: translateY(0); }
+  11.5% { transform: translateY(calc(var(--lift) * -0.44)); }
+  23%   { transform: translateY(calc(var(--lift) * -0.75)); }
+  34.5% { transform: translateY(calc(var(--lift) * -0.94)); }
+  46%   { transform: translateY(calc(var(--lift) * -1)); }
+  57.5% { transform: translateY(calc(var(--lift) * -0.94)); }
+  69%   { transform: translateY(calc(var(--lift) * -0.75)); }
+  80.5% { transform: translateY(calc(var(--lift) * -0.44)); }
+  92%   { transform: translateY(0); }
+  100%  { transform: translateY(0); }
+}
+
+/* Scaled only by whole multiples: the sprite is drawn at 3x, and 0.667 of that is 2x.
+   A pixel star at 1.25x has pixels of two different widths, which is exactly the look
+   `crispEdges` is there to avoid. */
+.dt-star-sprite {
   display: flex;
   align-items: center;
-  gap: 3px;
+  gap: 6px;
   color: var(--accent);
-  animation: dt-star-fly 0.75s cubic-bezier(0.4, 0, 0.3, 1) forwards;
+  animation: dt-star-pop 0.75s steps(1, end) forwards;
 }
-.dt-star-plus { font-family: var(--font-mono); font-size: 12px; font-weight: 600; }
-@keyframes dt-star-fly {
-  /* Pops at the checkbox first so you register where it came from, then travels. */
-  0%   { transform: translate(-50%, -50%) scale(0.6); opacity: 0; }
-  18%  { transform: translate(-50%, -50%) scale(1.15); opacity: 1; }
-  28%  { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-  100% { transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(0.45); opacity: 0; }
+@keyframes dt-star-pop {
+  0%   { transform: scale(0.667); opacity: 1; }
+  10%  { transform: scale(1); opacity: 1; }
+  /* Shrinks as it touches down at 92% and blinks out just after — absorbed into the
+     counter rather than fading away over it. With steps(1) there is nothing in
+     between: it is on, then it is gone. */
+  92%  { transform: scale(0.667); opacity: 1; }
+  97%  { transform: scale(0.667); opacity: 0; }
+  100% { transform: scale(0.667); opacity: 0; }
 }
 
 /* ---- Bottom tab bar ---- */
@@ -999,16 +1144,98 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 .dt-tab-icon { position: relative; display: flex; }
 .dt-tab-label { font-size: 10px; font-weight: 600; letter-spacing: 0.01em; }
 
-/* ---- The pet space ---- */
+/* ---- The pet space ----
+
+   A room, not an empty box: a papered wall, a skirting rail, a tiled floor, and the
+   two halves the residents are sorted into — the nest they hatch in on the left, the
+   mat they play on on the right.
+
+   The zone bands come in from the panel as --hatch-* and --play-* custom properties.
+   That is the point of passing them rather than writing the percentages here too: the
+   nest is drawn at the middle of the band eggs stand in, so the two cannot drift
+   apart as the layout is tuned.
+
+   Flat bands and checkers are gradients because hard-stop gradients are pixel-crisp
+   and cost nothing; the nest and the ball are sprites because shapes aren't. */
 .dt-habitat {
   position: relative;
-  height: 180px;
+  height: 200px;
   margin-bottom: 16px;
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--surface);
   overflow: hidden;
+
+  /* Where the wall meets the floor. One number: the rail, both bands and all the
+     furniture measure from it. Low, because the floor is where everything happens. */
+  --floor-y: 72px;
+  /* Mixed toward --surface rather than given as hex, so the room is built out of
+     whichever palette is loaded instead of needing four versions of itself. */
+  --room-wall: color-mix(in srgb, var(--muted) 9%, var(--surface));
+  --room-stripe: color-mix(in srgb, var(--muted) 16%, var(--surface));
+  --room-floor: color-mix(in srgb, var(--muted) 17%, var(--surface));
+  --room-grout: color-mix(in srgb, var(--muted) 24%, var(--surface));
+  --room-trim: color-mix(in srgb, var(--muted) 30%, var(--surface));
+  --room-trim-edge: color-mix(in srgb, var(--muted) 52%, var(--surface));
 }
+
+/* Striped paper, not a checker. The first version of this room tiled both surfaces
+   with small alternating squares, which is the pattern every image editor uses to
+   mean "nothing here" — the room read as a missing background. Stripes above and
+   grouted tiles below say wall and floor instead. */
+.dt-room-wall {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: var(--floor-y);
+  background:
+    repeating-linear-gradient(90deg, transparent 0 11px, var(--room-stripe) 11px 13px),
+    var(--room-wall);
+}
+.dt-room-floor {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: var(--floor-y);
+  bottom: 0;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 28px, var(--room-grout) 28px 30px),
+    repeating-linear-gradient(180deg, transparent 0 16px, var(--room-grout) 16px 18px),
+    var(--room-floor);
+}
+/* The skirting. Two tones, the darker one on top, which is how a pixel artist draws a
+   lit edge and what stops the wall and floor reading as one flat field. */
+.dt-room-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(var(--floor-y) - 5px);
+  height: 5px;
+  box-sizing: border-box;
+  background: var(--room-trim);
+  border-top: 2px solid var(--room-trim-edge);
+}
+/* The play mat. Square corners on purpose, and a 3px double border, which is a 1px
+   line, a 1px gap and a 1px line — a woven rug edge for free. */
+.dt-room-mat {
+  position: absolute;
+  left: var(--play-left);
+  width: var(--play-width);
+  top: calc(var(--floor-y) + 32px);
+  bottom: 12px;
+  box-sizing: border-box;
+  background: var(--accent-soft);
+  border: 3px double color-mix(in srgb, var(--accent) 32%, transparent);
+}
+/* Centred in the hatch band, which is what puts it under the eggs. */
+.dt-room-nest {
+  position: absolute;
+  left: calc(var(--hatch-left) + var(--hatch-width) / 2);
+  top: calc(var(--floor-y) + 50px);
+  transform: translateX(-50%);
+}
+.dt-room-ball { position: absolute; right: 13%; bottom: 26px; }
 .dt-habitat-empty {
   position: absolute;
   inset: 0;
@@ -1019,21 +1246,56 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
   text-align: center;
   font-size: 13px;
   color: var(--muted);
+  /* Over the scenery rather than beside it: the room is drawn whether or not anyone
+     lives in it, and 13px text on a tiled floor is not readable without this. */
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
 }
-.dt-resident { position: absolute; }
+/* `left` is the middle of a resident, not its left edge: the sprites are 12 to 21
+   pixels wide, and sharing a left edge put a tall thin egg and a wide cat in visibly
+   different places within the same band. */
+.dt-resident { position: absolute; transform: translateX(-50%); }
 /* Hatched creatures wander; an egg keeps its spot, because eggs don't walk. Every
    number comes from the id-derived seed, so nobody shares a gait and nobody moves
-   when React repaints. */
-.dt-resident.walks { animation-name: dt-wander; animation-timing-function: ease-in-out; animation-iteration-count: infinite; }
-.dt-resident.active::after {
+   when React repaints.
+   The walk is on the inner element because the outer is already using its transform
+   to centre the sprite, and an element has only the one.
+   Stepped, like everything else in here: a sprite that glides between positions is
+   the one thing that would give away that this is a web page. */
+.dt-resident.walks .dt-resident-body {
+  animation-name: dt-wander;
+  animation-duration: var(--walk-dur);
+  animation-delay: var(--walk-delay);
+  animation-timing-function: steps(6, end);
+  animation-iteration-count: infinite;
+}
+.dt-resident-body { position: relative; }
+
+/* The blink: two drawn frames, not an effect. Used by the room and by the slot — see
+   the Pet component in HatcheryPanel for why it is a reveal rather than a cross-fade,
+   and why an egg wobbles instead. */
+.dt-pet-frames { position: relative; display: block; }
+.dt-blink-frame {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  animation: dt-blink var(--blink-dur) steps(1, end) var(--blink-delay) infinite;
+}
+@keyframes dt-blink {
+  0%, 93% { opacity: 0; }
+  96%     { opacity: 1; }
+  99%     { opacity: 0; }
+  100%    { opacity: 0; }
+}
+/* On the body, not the outer: the marker follows the creature it marks. Square, like
+   everything else in the room — a 5px circle in here is five rounded-off pixels. */
+.dt-resident.active .dt-resident-body::after {
   content: '';
   position: absolute;
   left: 50%;
-  bottom: -7px;
+  bottom: -6px;
   transform: translateX(-50%);
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
+  width: 4px;
+  height: 4px;
   background: var(--accent);
 }
 @keyframes dt-wander {

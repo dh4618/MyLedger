@@ -30,10 +30,9 @@ export const emptyGame = () => ({
   // line, which is how "start from zero now" works with no migration and no backfill.
   baseline: null,
   spent: 0,
-  eggs: [],       // { id, species: null until opened }
+  eggs: [],       // { id, species: null until opened, progress }
   creatures: [],  // { id, species, progress }
-  activeId: null, // the one egg or creature receiving task progress
-  activeFrom: 0,  // the completed-task count when it entered the slot
+  activeId: null, // the one egg or creature you are raising, and the one food goes to
   // The picture pinned as the app's icon: { species, stage }, or null to follow
   // whatever is being raised. The only genuinely new state the album needs — which
   // pictures you own is implied by how far your creatures have got.
@@ -46,7 +45,10 @@ export function normalizeGame(raw) {
   g.eggs = (Array.isArray(g.eggs) ? g.eggs : []).map(withProgress);
   g.creatures = (Array.isArray(g.creatures) ? g.creatures : []).map(withProgress);
   g.spent = Number.isFinite(g.spent) ? g.spent : 0;
-  g.activeFrom = Number.isFinite(g.activeFrom) ? g.activeFrom : 0;
+  // `activeFrom` is deliberately not defaulted here. Growth used to accrue from the
+  // task count while something sat in the slot, and that field was where the count
+  // stood when it entered. Feeding replaced it, and its absence from emptyGame is what
+  // lets migrate() below tell an old save from a new one — see there.
   return g;
 }
 
@@ -88,11 +90,11 @@ export function nextStage(progress) {
   return null;
 }
 
-// Live progress of whatever is in the slot. Banked progress plus everything completed
-// since it entered, so swapping in and out can neither double-count nor lose a task.
-export const liveProgress = (entry, game, total) => (
-  !entry ? 0 : (entry.progress || 0) + (game.activeId === entry.id ? Math.max(0, total - game.activeFrom) : 0)
-);
+// How far along something is. Nothing live about it any more: growth is fed, so what
+// an entry has eaten is all there is. This used to add everything completed since the
+// entry took the slot, which meant progress arrived by itself and the slot was the
+// only thing you ever chose.
+export const progressOf = (entry) => (entry ? entry.progress || 0 : 0);
 
 export function activeEntry(game) {
   const g = normalizeGame(game);
@@ -119,25 +121,50 @@ export function openEgg(game, eggId, pick) {
   return { ...g, eggs: g.eggs.map((e) => (e.id === eggId ? { ...e, species } : e)) };
 }
 
-// Banks the active entry's live progress before anything else moves, so the slot can
-// be emptied or swapped without losing a task.
-function bank(g, total) {
-  if (!g.activeId) return g;
-  const apply = (x) => (x.id === g.activeId ? { ...x, progress: liveProgress(x, g, total) } : x);
-  return { ...g, eggs: g.eggs.map(apply), creatures: g.creatures.map(apply), activeId: null, activeFrom: 0 };
-}
-
-export const bankActive = (game, total) => bank(normalizeGame(game), total);
+// Putting something down just empties the slot. There is nothing to bank: feeding
+// writes progress the moment it happens, so what an entry has eaten is already on it
+// whether or not it is the one being raised.
+export const putDown = (game) => ({ ...normalizeGame(game), activeId: null });
 
 // Starting something is deliberate, and only one thing can be in the slot: while an
 // egg is being hatched — or a creature raised — nothing else can enter.
-export function startIncubating(game, id, total) {
+export function startIncubating(game, id) {
   const g = normalizeGame(game);
   if (g.activeId) return null;
   const target = g.eggs.find((e) => e.id === id) || g.creatures.find((c) => c.id === id);
   if (!target || !target.species) return null;
   if (isFullyGrown(target.progress || 0)) return null;
-  return { ...g, activeId: id, activeFrom: total };
+  return { ...g, activeId: id };
+}
+
+// What one meal costs. A star buys a step of growth, which is the whole economy: the
+// day's work becomes stars, and stars become either a new egg or a bigger creature.
+export const FEED_COST = 1;
+
+// Feed the thing in the slot. This is the only way anything grows.
+//
+// Completing a task used to grow your pet by itself, which made the whole hatchery
+// something that happened to you rather than something you did. Now a task earns a
+// star, and you choose what to spend it on.
+//
+// Returns null when there is nothing to feed, nothing to feed it with, or it is
+// already grown — so the caller can leave the button disabled for exactly the reasons
+// this refuses.
+export function feed(game, total, id) {
+  const g = normalizeGame(game);
+  const targetId = id || g.activeId;
+  if (!targetId) return null;
+  const entry = g.creatures.find((c) => c.id === targetId) || g.eggs.find((e) => e.id === targetId);
+  if (!entry || !entry.species) return null;
+  if (isFullyGrown(progressOf(entry))) return null;
+  if (stars(g, total).balance < FEED_COST) return null;
+  const grow = (x) => (x.id === targetId ? { ...x, progress: progressOf(x) + 1 } : x);
+  return settle({
+    ...g,
+    spent: g.spent + FEED_COST,
+    eggs: g.eggs.map(grow),
+    creatures: g.creatures.map(grow),
+  });
 }
 
 // Expects a normalized game, and returns it unchanged — same reference — when there
@@ -146,37 +173,74 @@ export function startIncubating(game, id, total) {
 // An egg that reaches its first threshold becomes a creature. It stays in the slot:
 // raising it to adult is the same queue as hatching, or "one at a time" would quietly
 // stop applying the moment something hatched.
-export function settle(game, total) {
+export function settle(game) {
   const g = game;
   let next = g;
-  const active = activeEntry(next);
-  if (active && next.eggs.some((e) => e.id === active.id)) {
-    const progress = liveProgress(active, next, total);
-    if (progress >= STAGE_AT[1]) {
-      next = {
-        ...next,
-        eggs: next.eggs.filter((e) => e.id !== active.id),
-        creatures: [...next.creatures, { id: active.id, species: active.species, progress: active.progress || 0 }],
-        activeFrom: next.activeFrom,
-      };
-    }
+  const hatched = next.eggs.filter((e) => e.species && progressOf(e) >= STAGE_AT[1]);
+  if (hatched.length) {
+    next = {
+      ...next,
+      eggs: next.eggs.filter((e) => !hatched.includes(e)),
+      creatures: [...next.creatures, ...hatched.map((e) => ({ id: e.id, species: e.species, progress: progressOf(e) }))],
+    };
   }
-  // A grown creature releases the slot rather than sitting in it earning nothing.
+  // A grown creature releases the slot rather than sitting in it eating nothing.
   const current = activeEntry(next);
-  if (current && isFullyGrown(liveProgress(current, next, total))) next = bank(next, total);
+  if (current && isFullyGrown(progressOf(current))) next = { ...next, activeId: null };
   return next === g ? g : next;
+}
+
+// One-time, for saves written while growth still came from completing tasks: fold what
+// the old rules had accrued into banked progress, so nobody loses a pet's worth of
+// growth to the change. Stars are untouched — none were ever spent on growing.
+//
+// `activeFrom` is the marker. It was in every old save and is in no new one, and
+// normalizeGame deliberately does not default it, so its presence is the question
+// "has this save been through here yet".
+//
+// Like settle, it expects an already-normalized game and returns that same reference
+// when there is nothing to do. Minting a new object on every call is what turned the
+// caller's "persist if it changed" into an infinite render loop once before.
+export function migrate(g, total) {
+  if (!Number.isFinite(g.activeFrom)) return g;
+  const gained = g.activeId ? Math.max(0, total - g.activeFrom) : 0;
+  const grow = (x) => (x.id === g.activeId ? { ...x, progress: progressOf(x) + gained } : x);
+  const next = { ...g, eggs: g.eggs.map(grow), creatures: g.creatures.map(grow) };
+  delete next.activeFrom;
+  return settle(next);
 }
 
 // Everything you own, most advanced first — the collection view, and the source of the
 // app's face when nothing is being raised.
-export function collection(game, total) {
+// These no longer take the completed-task count. They used to, because progress was
+// partly a function of it; now progress is on the entry and nothing here depends on
+// the log at all. A `total` they quietly ignored would say the opposite.
+export function collection(game) {
   const g = normalizeGame(game);
   const rows = [
-    ...g.creatures.map((c) => ({ ...c, kind: 'creature', live: liveProgress(c, g, total) })),
-    ...g.eggs.map((e) => ({ ...e, progress: e.progress || 0, kind: 'egg', live: liveProgress({ ...e, progress: e.progress || 0 }, g, total) })),
+    ...g.creatures.map((c) => ({ ...c, kind: 'creature', progress: progressOf(c) })),
+    ...g.eggs.map((e) => ({ ...e, kind: 'egg', progress: progressOf(e) })),
   ];
-  rows.forEach((r) => { r.stage = r.species ? stageOf(r.live) : 'egg'; });
-  return rows.sort((a, b) => b.live - a.live);
+  rows.forEach((r) => { r.stage = r.species ? stageOf(r.progress) : 'egg'; });
+  return rows.sort((a, b) => b.progress - a.progress);
+}
+
+// Which species you can put a name to.
+//
+// Opening an egg tells you which creature is inside, but it doesn't tell *you*: the
+// name is the payoff for hatching it, so until one of a species has been out of its
+// shell the app shows ??? in place of the name. Once one has hatched the species is
+// named for good — it is the same animal either way, so a second fox egg has nothing
+// left to hide.
+//
+// Derived, like everything else here: progress only goes up, so "has one of these ever
+// hatched" is just "is any of them past the egg stage".
+export function knownSpecies(game) {
+  const known = new Set();
+  collection(normalizeGame(game)).forEach((row) => {
+    if (row.species && row.stage !== 'egg') known.add(row.species);
+  });
+  return known;
 }
 
 // ---- the album ----
@@ -190,10 +254,10 @@ export function collection(game, total) {
 //
 // Two creatures of the same species contribute to the same row rather than appearing
 // twice — a picture is a picture, however many of that animal you have raised.
-export function album(game, total) {
+export function album(game) {
   const g = normalizeGame(game);
   const bySpecies = new Map();
-  collection(g, total).forEach((row) => {
+  collection(g).forEach((row) => {
     if (!row.species) return;
     const reached = STAGE_NAMES.indexOf(row.stage);
     if (reached < 0) return;
@@ -211,14 +275,14 @@ export function album(game, total) {
     }));
 }
 
-export const hasPicture = (game, total, species, stage) =>
-  album(game, total).some((row) => row.species === species && row.stages.includes(stage));
+export const hasPicture = (game, species, stage) =>
+  album(game).some((row) => row.species === species && row.stages.includes(stage));
 
 // Pinning is an override, so it needs an undo: without one, the automatic behaviour
 // becomes unreachable the moment you pin for the first time.
-export function pinIcon(game, total, species, stage) {
+export function pinIcon(game, species, stage) {
   const g = normalizeGame(game);
-  if (!hasPicture(g, total, species, stage)) return null;
+  if (!hasPicture(g, species, stage)) return null;
   return { ...g, icon: { species, stage } };
 }
 
@@ -239,9 +303,9 @@ export const isPinned = (game, species, stage) => {
 // The pin is checked against the album rather than trusted: a pin naming a picture you
 // do not own gives the generic egg instead of a creature you never raised. Nothing in
 // the app can produce that today, but a hand-edited blob can.
-export function iconFor(game, total) {
+export function iconFor(game) {
   const g = normalizeGame(game);
-  if (g.icon && hasPicture(g, total, g.icon.species, g.icon.stage)) return g.icon;
+  if (g.icon && hasPicture(g, g.icon.species, g.icon.stage)) return g.icon;
   return null;
 }
 
@@ -266,11 +330,17 @@ const mix = (n) => {
 // from its own re-mix of the seed, so they vary independently instead of moving together.
 export const seedAt = (seed, index) => mix(seed + index * 0x9e3779b9);
 
+// One creature, one number, wherever it is drawn: the room and the slot read the same
+// seed off the same id, so a pet blinks on its own rhythm and keeps it when it moves
+// between the two.
+export const seedFromId = (id) =>
+  mix([...String(id)].reduce((h, ch) => Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0, 2166136261));
+
 // `seed` is derived from the id so a resident keeps its spot and its gait across
 // re-renders instead of leaping about whenever React repaints.
-export function residents(game, total) {
+export function residents(game) {
   const g = normalizeGame(game);
-  return collection(g, total)
+  return collection(g)
     .filter((row) => row.species)
     .map((row) => ({
       id: row.id,
@@ -278,6 +348,6 @@ export function residents(game, total) {
       stage: row.stage,
       walks: row.kind === 'creature',
       isActive: g.activeId === row.id,
-      seed: mix([...String(row.id)].reduce((h, ch) => Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0, 2166136261)),
+      seed: seedFromId(row.id),
     }));
 }

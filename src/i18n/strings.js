@@ -160,10 +160,11 @@ export const en = {
   'game.nothingRaising': 'Nothing yet. Open an egg and choose one to raise.',
   'game.toNext': '{done}/{need} to {stage}',
   'game.fullyGrown': 'Fully grown',
+  'game.feed': 'Feed',
+  'game.tada': 'Ta-da!',
   'game.putDown': 'Put down',
   'game.store': 'Store',
   'game.mysteryEgg': 'Mystery egg',
-  'game.mysteryEggHint': 'Could be any of the four.',
   /* No noun after the count: there is no plural machinery here, and "1 more stars"
      is wrong at the production price too, not just the testing one. The star icon
      and balance sit directly above, so "1 more" is unambiguous. */
@@ -171,6 +172,9 @@ export const en = {
   'game.collection': 'Collection',
   'game.collectionEmpty': 'Nothing hatched yet.',
   'game.unopened': 'Unopened',
+  /* Stands in for the species name until one of that species has hatched. Opening an
+     egg shows you the egg, not the animal — the name is what hatching is for. */
+  'game.unknownName': '???',
   'game.open': 'Open',
   'game.raise': 'Raise',
   'game.raisingNow': 'Raising now',
@@ -420,14 +424,16 @@ export const zhCN = {
   'game.nothingRaising': '还没有。打开一颗蛋，选一只来养。',
   'game.toNext': '距离{stage}还差 {done}/{need}',
   'game.fullyGrown': '已长大',
+  'game.feed': '喂食',
+  'game.tada': '铛铛！',
   'game.putDown': '先放下',
   'game.store': '商店',
   'game.mysteryEgg': '神秘蛋',
-  'game.mysteryEggHint': '四种之中的任意一种。',
   'game.needMore': '还差 {n} 颗星星。',
   'game.collection': '收藏',
   'game.collectionEmpty': '还没有孵出任何一只。',
   'game.unopened': '未打开',
+  'game.unknownName': '???',
   'game.open': '打开',
   'game.raise': '养育',
   'game.raisingNow': '正在养育',
