@@ -358,15 +358,37 @@ button,
   font-size: 13px;
   line-height: 1.4;
 }
-/* The top inset only bites when the status bar style is translucent; it's 0
-   otherwise, so this is free on desktop and in Safari. */
+/* The day's own heading: the goal filters, the date and the week strip. The brand,
+   the star count and the gear are not in here — see .dt-topbar. */
 .dt-header {
-  padding: calc(22px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) 8px
-           calc(20px + env(safe-area-inset-left));
+  padding: 0 calc(20px + env(safe-area-inset-right)) 8px calc(20px + env(safe-area-inset-left));
 }
-/* When the warning banner is showing it has already paid the top inset. */
-.dt-storage-warning + .dt-header { padding-top: 22px; }
-.dt-topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+/* Stuck to the top of every tab, however far down you scroll. It is a child of the
+   container rather than of .dt-header because an element sticks only within its own
+   parent's box: inside the header it would come unstuck the moment the week strip
+   scrolled past, which is about two centimetres.
+
+   Opaque, or the page would show through it. Below the sheets (50) and the tab bar
+   (55), so neither ends up underneath it; the star flight is fixed at 70 and passes
+   over it on its way to the counter, which is the point of it being up here.
+
+   The top inset only bites when the status bar style is translucent; it's 0
+   otherwise, so this is free on desktop and in Safari. */
+.dt-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: calc(16px + env(safe-area-inset-top)) calc(20px + env(safe-area-inset-right)) 12px
+           calc(20px + env(safe-area-inset-left));
+  background: var(--bg);
+}
+/* When the warning banner is showing it has already paid the top inset — and the bar
+   sticks below it rather than over it, since the warning scrolls away with the page. */
+.dt-storage-warning + .dt-topbar { padding-top: 16px; }
 .dt-brand { display: flex; align-items: center; gap: 10px; }
 .dt-wordmark { font-family: var(--font-display); font-weight: 900; font-size: 22px; letter-spacing: -0.02em; }
 .dt-tagline { font-family: var(--font-display); letter-spacing: var(--display-tracking); font-style: italic; font-size: 12px; color: var(--muted); margin-top: -2px; }

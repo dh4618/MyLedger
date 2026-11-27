@@ -943,47 +943,50 @@ export default function Ledger() {
             <div style={{ marginTop: 6, fontSize: 11, opacity: 0.85 }}>{t('error.exportFirst')}</div>
           </div>
         )}
-        <div className="dt-header">
-          <div className="dt-topbar">
-            <div className="dt-brand">
-              <div className={`dt-header-mascot ${dayMood === 'cheer' ? 'cheer' : ''}`}>
-                <Pixel sprite={faceSprite} size={38} label={t('game.faceAria')} />
-              </div>
-              <div>
-                <div className="dt-wordmark">{t('app.name')}</div>
-                <div className="dt-tagline">{t('app.tagline')}</div>
-              </div>
+        {/* Sticky, which is why it is a sibling of the header rather than inside it:
+            an element sticks only within its own parent's box, and the header is as
+            tall as the week strip and no taller — the brand would come unstuck the
+            moment you scrolled past the dates. Here its parent is the whole page. */}
+        <div className="dt-topbar">
+          <div className="dt-brand">
+            <div className={`dt-header-mascot ${dayMood === 'cheer' ? 'cheer' : ''}`}>
+              <Pixel sprite={faceSprite} size={38} label={t('game.faceAria')} />
             </div>
-            <div className="dt-topbar-actions">
-              {/* In the header rather than on a page, so it is there on every tab and a
-                  flying star always has somewhere to land. Tapping it goes to the store,
-                  which is the only thing stars are for. */}
-              <button
-                ref={starCounterRef}
-                className={`dt-star-count ${landed ? 'landed' : ''}`}
-                title={t('tab.store')}
-                onClick={() => setTab('store')}
-              >
-                {/* The same drawn star that flies here, so the thing that arrives and
-                    the thing it lands in are made of the same pixels. */}
-                <Pixel sprite={PIXEL_STAR_SMALL} size={14} />
-                {/* Holds back the stars still in the air, so the number goes up as each
-                    one lands rather than jumping before it arrives — the flight is the
-                    delivery, not a decoration over an increment that already happened.
-                    It self-corrects: a flight leaves `flights` when its animation ends,
-                    and the clamp stops an untick mid-flight showing a negative. */}
-                <span>{Math.max(0, starBalance - flights.length)}</span>
-              </button>
-              <button className="dt-settings-btn" title={t('manage.title')} onClick={() => { setManageGoalId(null); setShowAddGoalInManage(false); setIconPickerGoalId(null); setShowManage(true); }}>
-                <Settings size={20} />
-              </button>
+            <div>
+              <div className="dt-wordmark">{t('app.name')}</div>
+              <div className="dt-tagline">{t('app.tagline')}</div>
             </div>
           </div>
+          <div className="dt-topbar-actions">
+            {/* In the header rather than on a page, so it is there on every tab and a
+                flying star always has somewhere to land. Tapping it goes to the store,
+                which is the only thing stars are for. */}
+            <button
+              ref={starCounterRef}
+              className={`dt-star-count ${landed ? 'landed' : ''}`}
+              title={t('tab.store')}
+              onClick={() => setTab('store')}
+            >
+              {/* The same drawn star that flies here, so the thing that arrives and
+                  the thing it lands in are made of the same pixels. */}
+              <Pixel sprite={PIXEL_STAR_SMALL} size={14} />
+              {/* Holds back the stars still in the air, so the number goes up as each
+                  one lands rather than jumping before it arrives — the flight is the
+                  delivery, not a decoration over an increment that already happened.
+                  It self-corrects: a flight leaves `flights` when its animation ends,
+                  and the clamp stops an untick mid-flight showing a negative. */}
+              <span>{Math.max(0, starBalance - flights.length)}</span>
+            </button>
+            <button className="dt-settings-btn" title={t('manage.title')} onClick={() => { setManageGoalId(null); setShowAddGoalInManage(false); setIconPickerGoalId(null); setShowManage(true); }}>
+              <Settings size={20} />
+            </button>
+          </div>
+        </div>
 
-          {/* The goal filters, the date and the week strip belong to the day and
-              only to it; the brand, the star count and the gear stay on every tab. */}
-          {tab === 'day' && (
-            <>
+        {/* The goal filters, the date and the week strip belong to the day and only to
+            it; the brand, the star count and the gear stay on every tab, above. */}
+        {tab === 'day' && (
+          <div className="dt-header">
             <div className="dt-goals-row">
               {/* Only goals with something on this day, so a pile of long-term projects
                   doesn't crowd the row. The active filter stays visible even once its
@@ -1062,9 +1065,8 @@ export default function Ledger() {
                 <ChevronRight size={18} />
               </button>
             </div>
-            </>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* One tab's page at a time. These were sheets pulled up over the day, which
             meant the day was always underneath and "Day" meant closing whatever was

@@ -248,7 +248,11 @@ export default function HatcheryPanel({ game, total, onOpen, onSelect, onFeed, o
             {step && (
               <div className="dt-raise-actions">
                 <button className="dt-feed-btn" disabled={!canFeed} onClick={onFeed}>
-                  {t('game.feed')} <Pixel sprite={PIXEL_STAR_SMALL} size={14} /> {FEED_COST}
+                  {/* An egg is not fed, it is hatched. Same star, same step of
+                      progress, different word for the one stage where feeding is
+                      the wrong verb. */}
+                  {t(activeStage === 'egg' ? 'game.hatch' : 'game.feed')}
+                  {' '}<Pixel sprite={PIXEL_STAR_SMALL} size={14} /> {FEED_COST}
                 </button>
               </div>
             )}

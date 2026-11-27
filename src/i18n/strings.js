@@ -152,6 +152,8 @@ export const en = {
   'game.toNext': '{done}/{need} to {stage}',
   'game.fullyGrown': 'Fully grown',
   'game.feed': 'Feed',
+  /* Same button, same star: an egg is not fed, it is sat on until it hatches. */
+  'game.hatch': 'Hatch',
   'game.tada': 'Ta-da!',
   'game.store': 'Store',
   'game.storeHint': 'A new egg goes straight into your collection, on the Pet tab.',
@@ -404,6 +406,7 @@ export const zhCN = {
   'game.toNext': '距离{stage}还差 {done}/{need}',
   'game.fullyGrown': '已长大',
   'game.feed': '喂食',
+  'game.hatch': '孵化',
   'game.tada': '铛铛！',
   'game.store': '商店',
   'game.storeHint': '买到的蛋会直接进入伙伴页的收藏。',
