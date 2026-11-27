@@ -421,6 +421,11 @@ the same as the room), so the boxes are identical, every creature stands on the 
 edge of its own, and the stages sit at their true relative sizes — an egg is small and an
 adult is not. Under each one is its stage, and nothing else.
 
+The section above it is headed **Feeding** — in Chinese 喂养 — rather than "Raising",
+and the line under **Collection** says *Tap one to feed it*. The heading, the hint and the
+button now all use the same verb for the same thing, which is what you are doing with the
+pet on show.
+
 **No names.** The picture says which animal it is, and a word under every one of a dozen
 cards was the noisiest thing on the page. The name is still on the sprite's `aria-label`,
 so a screen reader gets it — and the `???` rule still applies there, so an unhatched egg
