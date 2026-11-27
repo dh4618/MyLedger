@@ -414,6 +414,18 @@ costs: **1 star**, so a creature raised from egg to adult is forty tasks all tol
 > `EGG_PRICE` is `1`, so the whole loop runs in a handful of taps. Put them back to
 > `[5, 10, 15]` and `10` before this is used for real.
 
+### The collection
+
+A grid of **squares**: every picture is drawn on the whole 24×24 canvas (`fit="canvas"`,
+the same as the room), so the boxes are identical, every creature stands on the bottom
+edge of its own, and the stages sit at their true relative sizes — an egg is small and an
+adult is not. Under each one is its stage, and nothing else.
+
+**No names.** The picture says which animal it is, and a word under every one of a dozen
+cards was the noisiest thing on the page. The name is still on the sprite's `aria-label`,
+so a screen reader gets it — and the `???` rule still applies there, so an unhatched egg
+is unnamed to a screen reader too.
+
 ### The album, and the icon
 
 Every stage a creature reaches is kept as a **picture** you own, listed in the album at the

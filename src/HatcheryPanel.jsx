@@ -279,16 +279,23 @@ export default function HatcheryPanel({ game, total, onOpen, onSelect, onFeed, o
           const grown = !unopened && !nextStage(row.progress);
           const body = (
             <>
+              {/* Canvas-fit, so every picture is the same square and every creature
+                  stands on its bottom edge — a row of them lines up instead of each
+                  being blown up to fill a box of its own shape. It also puts the
+                  stages at their true relative sizes, which is the same reason the
+                  room uses it: an egg is small and an adult is not.
+
+                  The name used to sit under here. The picture says which animal it
+                  is, and a word under every one of a dozen cards was the noisiest
+                  thing in the grid. */}
               <Pixel
                 sprite={unopened ? MYSTERY_EGG : spriteFor(row.species, row.stage)}
-                size={54}
+                size={60}
+                fit="canvas"
                 label={unopened ? t('game.mysteryEgg') : creatureName(row.species)}
               />
-              <div className="dt-creature-name">
-                {unopened ? t('game.unopened') : creatureName(row.species)}
-              </div>
               <div className="dt-creature-stage">
-                {unopened ? '···' : stageName(row.stage)}
+                {unopened ? t('game.unopened') : stageName(row.stage)}
               </div>
             </>
           );
