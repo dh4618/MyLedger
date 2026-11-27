@@ -1367,8 +1367,11 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 }
 div.dt-creature-card { cursor: default; }
 .dt-creature-card.active { border-color: var(--accent); box-shadow: none; }
-.dt-creature-name { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
 .dt-creature-stage { font-size: 11px; color: var(--muted); }
+/* The picture is a fixed square whatever the creature's shape, so the grid reads as a
+   grid. Without this a tall sprite and a wide one leave different gaps above the
+   caption underneath. */
+.dt-creature-card .dt-pixel { margin-bottom: 1px; }
 .dt-creature-card .dt-preset-btn { width: 100%; flex: none; margin-top: 2px; }
 .dt-creature-flag { font-size: 11px; color: var(--accent); font-weight: 600; margin-top: 4px; }
 .dt-creature-flag.done { color: var(--muted); }
