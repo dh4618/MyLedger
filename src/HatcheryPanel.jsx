@@ -88,7 +88,7 @@ const inNest = (zone, seed, index, count) => ({
 //
 // The panel only ever reads the task log. Nothing in here can tick a task, which is
 // what keeps the report and the streak honest while this sits on top of them.
-export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onStop, onFeed, onPin, onUnpin, onClose }) {
+export default function HatcheryPanel({ game, total, onBuy, onOpen, onSelect, onFeed, onPin, onUnpin, onClose }) {
   const { t } = useLang();
   const { balance } = stars(game, total);
   const active = activeEntry(game);
@@ -253,17 +253,17 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
               ) : (
                 <div className="dt-raise-meta">{t('game.fullyGrown')}</div>
               )}
-              {/* Growing is the one thing you spend stars on besides a new egg, so it
-                  is the primary action here and Put down is the quiet one beside it.
-                  Disabled for exactly the reasons feed() refuses. */}
-              <div className="dt-raise-actions">
-                {step && (
+              {/* Feeding is the only button here. Raise and Put down used to flank it
+                  — tapping a pet in the collection is both of those now, so the slot
+                  is simply whichever one you picked. Disabled for exactly the reasons
+                  feed() refuses, and absent entirely once there is nothing to grow. */}
+              {step && (
+                <div className="dt-raise-actions">
                   <button className="dt-feed-btn" disabled={!canFeed} onClick={onFeed}>
                     {t('game.feed')} <Pixel sprite={PIXEL_STAR_SMALL} size={14} /> {FEED_COST}
                   </button>
-                )}
-                <button className="dt-preset-btn" onClick={onStop}>{t('game.putDown')}</button>
-              </div>
+                </div>
+              )}
               {step && !canFeed && (
                 <div className="dt-raise-meta">{t('game.needMore', { n: FEED_COST - balance })}</div>
               )}
@@ -292,14 +292,18 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
 
         {/* ---- what you own ---- */}
         <div className="dt-field-label" style={{ marginTop: 20 }}>{t('game.collection')}</div>
-        {rows.length === 0 && <div className="dt-empty-manage" style={{ padding: '10px 0' }}>{t('game.collectionEmpty')}</div>}
+        {rows.length === 0
+          ? <div className="dt-empty-manage" style={{ padding: '10px 0' }}>{t('game.collectionEmpty')}</div>
+          /* The Raise button used to say what a card was for. Tapping one does not, so
+             this does. */
+          : <div className="dt-hint" style={{ marginTop: 0, marginBottom: 8 }}>{t('game.collectionHint')}</div>}
         <div className="dt-collection">
           {rows.map((row) => {
             const unopened = !row.species;
             const isActive = game.activeId === row.id;
             const grown = !unopened && !nextStage(row.progress);
-            return (
-              <div key={row.id} className={`dt-creature-card ${isActive ? 'active' : ''}`}>
+            const body = (
+              <>
                 <Pixel
                   sprite={unopened ? MYSTERY_EGG : spriteFor(row.species, row.stage)}
                   size={54}
@@ -311,25 +315,38 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
                 <div className="dt-creature-stage">
                   {unopened ? '···' : stageName(row.stage)}
                 </div>
-                {unopened ? (
+              </>
+            );
+            // An unopened egg stays a plain card, because it holds the Open button and
+            // a button inside a button is not a thing. Everything else *is* the button:
+            // tapping a pet puts it on show, which is all choosing one means now.
+            if (unopened) {
+              return (
+                <div key={row.id} className="dt-creature-card">
+                  {body}
                   <button className="dt-preset-btn" onClick={() => onOpen(row.id)}>
                     <Sparkles size={13} /> {t('game.open')}
                   </button>
+                </div>
+              );
+            }
+            return (
+              <button
+                key={row.id}
+                type="button"
+                className={`dt-creature-card ${isActive ? 'active' : ''}`}
+                aria-pressed={isActive}
+                onClick={() => onSelect(row.id)}
+              >
+                {body}
+                {/* The ring already says which one is on show; this says why there is
+                    no Feed button under a creature that has finished growing. */}
+                {grown ? (
+                  <div className="dt-creature-flag done">{t('game.fullyGrown')}</div>
                 ) : isActive ? (
                   <div className="dt-creature-flag">{t('game.raisingNow')}</div>
-                ) : grown ? (
-                  <div className="dt-creature-flag done">{t('game.fullyGrown')}</div>
-                ) : (
-                  <button
-                    className="dt-preset-btn"
-                    /* One at a time: while anything is in the slot, nothing else may
-                       enter it — which is also why this says why it's disabled. */
-                    disabled={!!game.activeId}
-                    title={game.activeId ? t('game.slotBusy') : undefined}
-                    onClick={() => onStart(row.id)}
-                  >{t('game.raise')}</button>
-                )}
-              </div>
+                ) : null}
+              </button>
             );
           })}
         </div>

@@ -121,19 +121,21 @@ export function openEgg(game, eggId, pick) {
   return { ...g, eggs: g.eggs.map((e) => (e.id === eggId ? { ...e, species } : e)) };
 }
 
-// Putting something down just empties the slot. There is nothing to bank: feeding
-// writes progress the moment it happens, so what an entry has eaten is already on it
-// whether or not it is the one being raised.
-export const putDown = (game) => ({ ...normalizeGame(game), activeId: null });
-
-// Starting something is deliberate, and only one thing can be in the slot: while an
-// egg is being hatched — or a creature raised — nothing else can enter.
-export function startIncubating(game, id) {
+// Which of your pets is on show, and where food goes. Tapping one in the collection
+// is the whole interaction: there is no putting down and nothing to free, because
+// choosing another is what moves it.
+//
+// It used to refuse while anything else was in the slot, and refuse a grown creature
+// outright. Both rules existed to protect a queue that no longer exists — progress is
+// on the entry and nothing accrues to the slot, so swapping costs nothing. A grown
+// creature can be selected like any other; it simply has nothing left to eat.
+//
+// Still refused: an egg you have not opened. There is nothing to show yet, and the
+// card offers you Open instead.
+export function selectPet(game, id) {
   const g = normalizeGame(game);
-  if (g.activeId) return null;
   const target = g.eggs.find((e) => e.id === id) || g.creatures.find((c) => c.id === id);
   if (!target || !target.species) return null;
-  if (isFullyGrown(target.progress || 0)) return null;
   return { ...g, activeId: id };
 }
 
@@ -170,24 +172,20 @@ export function feed(game, total, id) {
 // Expects a normalized game, and returns it unchanged — same reference — when there
 // is nothing to do, so callers can use identity to decide whether to persist.
 //
-// An egg that reaches its first threshold becomes a creature. It stays in the slot:
-// raising it to adult is the same queue as hatching, or "one at a time" would quietly
-// stop applying the moment something hatched.
+// An egg that reaches its first threshold becomes a creature, keeping its id and so
+// its place on show. Growing up used to release the slot as well, on the grounds that
+// a grown creature sat in it earning nothing; now the slot is just which pet you are
+// looking at, and taking it off screen the moment it finished growing would be the
+// opposite of what you asked for.
 export function settle(game) {
   const g = game;
-  let next = g;
-  const hatched = next.eggs.filter((e) => e.species && progressOf(e) >= STAGE_AT[1]);
-  if (hatched.length) {
-    next = {
-      ...next,
-      eggs: next.eggs.filter((e) => !hatched.includes(e)),
-      creatures: [...next.creatures, ...hatched.map((e) => ({ id: e.id, species: e.species, progress: progressOf(e) }))],
-    };
-  }
-  // A grown creature releases the slot rather than sitting in it eating nothing.
-  const current = activeEntry(next);
-  if (current && isFullyGrown(progressOf(current))) next = { ...next, activeId: null };
-  return next === g ? g : next;
+  const hatched = g.eggs.filter((e) => e.species && progressOf(e) >= STAGE_AT[1]);
+  if (!hatched.length) return g;
+  return {
+    ...g,
+    eggs: g.eggs.filter((e) => !hatched.includes(e)),
+    creatures: [...g.creatures, ...hatched.map((e) => ({ id: e.id, species: e.species, progress: progressOf(e) }))],
+  };
 }
 
 // One-time, for saves written while growth still came from completing tasks: fold what
