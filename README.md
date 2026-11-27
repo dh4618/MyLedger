@@ -352,9 +352,14 @@ drawn at all — one animation, no second timeline to drift out of step.
 An egg has no eyes, so its second frame is the whole shape nudged a pixel: the same
 machinery **wobbles** it.
 
-The period and offset are seeded per resident, in **tenths** of a second. Whole seconds gave
+The period and offset are seeded per creature, in **tenths** of a second. Whole seconds gave
 six periods and seven offsets, and three creatures found a collision on the first try — the
 same lesson as the stacked residents, one layer down.
+
+**The pet in the slot blinks too** — it is the one you are looking at while you feed it. Both
+places render the same `Pet` component and take their seed from `seedFromId`, so a creature
+keeps one rhythm whether you are watching it in the room or in the slot, rather than
+appearing twice on screen blinking at two different times.
 
 **Who is in front** follows who is standing lower: `z-index` is the resident's `top`, so two
 creatures sharing a patch of mat read as one in front of the other rather than as a drawing

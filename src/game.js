@@ -330,6 +330,12 @@ const mix = (n) => {
 // from its own re-mix of the seed, so they vary independently instead of moving together.
 export const seedAt = (seed, index) => mix(seed + index * 0x9e3779b9);
 
+// One creature, one number, wherever it is drawn: the room and the slot read the same
+// seed off the same id, so a pet blinks on its own rhythm and keeps it when it moves
+// between the two.
+export const seedFromId = (id) =>
+  mix([...String(id)].reduce((h, ch) => Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0, 2166136261));
+
 // `seed` is derived from the id so a resident keeps its spot and its gait across
 // re-renders instead of leaping about whenever React repaints.
 export function residents(game) {
@@ -342,6 +348,6 @@ export function residents(game) {
       stage: row.stage,
       walks: row.kind === 'creature',
       isActive: g.activeId === row.id,
-      seed: mix([...String(row.id)].reduce((h, ch) => Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0, 2166136261)),
+      seed: seedFromId(row.id),
     }));
 }

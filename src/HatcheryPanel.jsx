@@ -3,7 +3,7 @@ import { X, Sparkles } from 'lucide-react';
 import { useLang } from './i18n/LanguageProvider';
 import Pixel from './Pixel';
 import { spriteFor, hasAltFrame, MYSTERY_EGG, PIXEL_STAR, PIXEL_STAR_SMALL, PIXEL_NEST, PIXEL_BALL } from './pixels';
-import { stars, collection, activeEntry, progressOf, nextStage, stageOf, album, isPinned, residents, knownSpecies, seedAt, EGG_PRICE, FEED_COST } from './game';
+import { stars, collection, activeEntry, progressOf, nextStage, stageOf, album, isPinned, residents, knownSpecies, seedAt, seedFromId, EGG_PRICE, FEED_COST } from './game';
 
 // The room has two halves, and which half a resident stands in is the point of them:
 // eggs wait in the nest, hatched creatures play on the mat. Both the art and the
@@ -41,6 +41,38 @@ const scatter = (zone, seed) => ({
   left: zone.left + (SPRITE_PCT / 2) + (seedAt(seed, 1) % Math.max(1, Math.round(zone.width - SPRITE_PCT))),
   top: zone.top + (seedAt(seed, 2) % Math.max(1, zone.band)),
 });
+
+// A creature and its second frame, stacked, blinking on its own rhythm.
+//
+// The second frame sits exactly over the first and is uncovered for a sixth of a
+// second every few seconds. It can simply be revealed rather than cross-faded because
+// the pair share a canvas and differ only in the eyes, so the top one covers the
+// bottom one wherever it is drawn at all — which also means one animation is involved
+// and there are no two timelines to drift apart. An egg has no eyes: its second frame
+// is the whole shape nudged a pixel, so the same machinery wobbles it.
+//
+// `fit` is canvas here and not negotiable. Cropping to the drawn pixels would scale
+// the two frames differently — an egg's wobble frame has a different bounding box by
+// exactly the pixel it was nudged — and faithfully undo the wobble.
+function Pet({ sprite, size, label, seed, className = '' }) {
+  return (
+    <div
+      className={`dt-pet-frames ${className}`}
+      style={{
+        // Tenths of a second, not whole ones: six possible periods and seven possible
+        // offsets is 42 combinations, and three creatures found a collision on the
+        // first try.
+        '--blink-dur': `${4 + (seedAt(seed, 6) % 41) / 10}s`,
+        '--blink-delay': `-${(seedAt(seed, 7) % 80) / 10}s`,
+      }}
+    >
+      <Pixel sprite={sprite} size={size} fit="canvas" label={label} />
+      {hasAltFrame(sprite) && (
+        <Pixel sprite={sprite} frame="alt" size={size} fit="canvas" className="dt-blink-frame" />
+      )}
+    </div>
+  );
+}
 
 // Eggs are laid out instead of scattered: evenly across the nest, in collection order.
 // Seeded spots piled two eggs on top of each other often enough to look like a bug,
@@ -157,11 +189,6 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
             const duration = 7 + (seedAt(who.seed, 3) % 9);
             const delay = -(seedAt(who.seed, 4) % 11);
             const drift = 18 + (seedAt(who.seed, 5) % 20);
-            // Out of phase with each other, or three creatures blink as one animal.
-            // Tenths of a second, not whole ones: six possible periods and seven
-            // possible offsets is 42 combinations, and three creatures found a
-            // collision on the first try.
-            const blink = 4 + (seedAt(who.seed, 6) % 41) / 10;
             return (
               <div
                 key={who.id}
@@ -177,28 +204,14 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
                   '--drift': `${drift}%`,
                   '--walk-dur': `${duration}s`,
                   '--walk-delay': `${delay}s`,
-                  '--blink-dur': `${blink}s`,
-                  '--blink-delay': `-${(seedAt(who.seed, 7) % 80) / 10}s`,
                 }}
                 title={`${creatureName(who.species)} · ${stageName(who.stage)}`}
               >
                 {/* The wander is on the inner element so the outer can keep the
                     half-width offset that centres the sprite on its spot — one
-                    transform cannot do both.
-
-                    The blink is the creature's second frame drawn over its first and
-                    uncovered for a moment, rather than anything done to the first.
-                    Both frames are the same 24x24 canvas and the only pixels that
-                    differ are the eyes, so the top frame hides the one underneath
-                    completely while it is up. An egg has no eyes: its second frame is
-                    the whole shape nudged a pixel, so it wobbles instead. */}
+                    transform cannot do both. */}
                 <div className="dt-resident-body">
-                  <div className="dt-resident-frames">
-                    <Pixel sprite={sprite} size={RESIDENT_PX} fit="canvas" label={creatureName(who.species)} />
-                    {hasAltFrame(sprite) && (
-                      <Pixel sprite={sprite} frame="alt" size={RESIDENT_PX} fit="canvas" className="dt-blink-frame" />
-                    )}
-                  </div>
+                  <Pet sprite={sprite} size={RESIDENT_PX} seed={who.seed} label={creatureName(who.species)} />
                 </div>
               </div>
             );
@@ -216,7 +229,15 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
         <div className="dt-field-label" style={{ marginTop: 20 }}>{t('game.raising')}</div>
         {active ? (
           <div className="dt-raise-card">
-            <Pixel sprite={spriteFor(active.species, activeStage)} size={72} label={creatureName(active.species)} />
+            {/* The one you are raising blinks too — it is the pet you are looking at
+                while you feed it. Canvas-fit, like the room, so it is a touch larger
+                a number than the 72 a cropped sprite used to be given, so an egg still fills the slot. */}
+            <Pet
+              sprite={spriteFor(active.species, activeStage)}
+              size={104}
+              seed={seedFromId(active.id)}
+              label={creatureName(active.species)}
+            />
             <div className="dt-raise-body">
               <div className="dt-raise-name">{creatureName(active.species)}</div>
               <div className="dt-raise-stage">{stageName(activeStage)}</div>
