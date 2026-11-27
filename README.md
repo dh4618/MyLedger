@@ -1,6 +1,7 @@
-# Ledger
+# Hatchery
 
-A daily task app with goals, repeating tasks, presets, and keep-until-complete carry-over.
+A daily task app with goals, repeating tasks, presets, and keep-until-complete carry-over —
+and a hatchery where the day's work turns into stars, stars into eggs, and eggs into pets.
 Ported off Claude Artifacts to a normal web app: React + Vite frontend, Supabase (Postgres) backend.
 
 The migration off the artifact was a single change: `window.storage` was swapped for
@@ -201,23 +202,27 @@ drops its negative tracking (full-width characters are already tightly fitted).
 
 ## Getting around
 
-A **bottom tab bar**: Day, Pet, Progress, List. **Settings stays as a gear in the header** —
-it's the one you open least, and four wide tabs beat five narrow ones on a phone. The
-groceries badge rides on the List tab, so you still see at a glance that there's shopping
-to do.
+A **bottom tab bar**: Day, Pet, Store, Progress. **Settings stays as a gear in the header**
+— it's the one you open least, and four wide tabs beat five narrow ones on a phone.
 
-The panels are still sheets over the day page rather than separate screens, so **Day means
-"close whatever is open"**, and which tab reads as current follows from which sheet is up —
-there's no second piece of state to fall out of step with it.
+**They are real tabs.** Each one is a page: the header's brand, star count and gear stay
+put, the bar stays put, and the middle of the screen is replaced. The goal filters, the
+date, the week strip and the FAB belong to the day and only to it.
+
+They used to be sheets pulled up over the day page, which meant the day was always
+underneath, "Day" meant *close whatever is open*, and which tab read as current had to be
+derived from which sheet was up. One `tab` state says it now.
+
+**Tapping the star count goes to the Store**, which is the only thing stars are for. The
+count lives in the header rather than on a page so it is there on every tab — and so a
+flying star always has somewhere to land.
 
 Three things have to agree about the bar's height: the page's bottom padding, the FAB's
 offset, and the bar itself. That's `--tabbar-h` in `src/theme.css`, so they can't drift
 apart.
 
-The bar sits at `z-index: 55` — **above the panel sheets (50)** so a tab is always one tap
-away without closing the current one first, and **below the modals and the calendar (60)**,
-which are meant to block everything until you answer them. The sheets pad their bottom by
-`--tabbar-h` so their last rows don't hide behind it.
+The bar sits at `z-index: 55` — above anything that still is a sheet, and **below the
+modals and the calendar (60)**, which are meant to block everything until you answer them.
 
 ---
 
@@ -413,6 +418,14 @@ the same rule the rest of the panel follows.
 Tapping a picture **pins** it as the app's face, in the header, the loading screen and the
 empty state. Tapping the pinned one again clears it.
 
+**The loading screen shows it too.** The pin lives in the `game` blob, which is exactly
+what the loading screen is waiting for — so the screen that waits for your pet could never
+show it. A copy goes to `localStorage` under `ledger-boot-icon`, read before the first paint
+and rewritten whenever the pin changes, which is the same trick the theme and the language
+already use to avoid a flash of the wrong one. It is a cache, not state: `iconFor` still
+validates the real pin against the album, and an unknown species falls back to the mystery
+egg by itself.
+
 **The face is the pinned picture, or the generic egg.** Nothing else sets it. It used to
 fall back to whatever you were raising, which meant the icon changed under you every time a
 creature grew; now it stays where you put it. A new account sees an egg, as does the
@@ -436,8 +449,12 @@ bottom of a long day is a proper lob. A single keyframe set would have to spell 
 out position by position in px, with the height baked in.
 
 **The star and the +1 are drawn, not icons**, and the motion is **stepped** — the travel hops
-once per ~14px, the arc holds eight heights off `4t(1−t)`, the sprite scales only by whole
-multiples (3x, and 0.667 of that is 2x). Moving pixel art smoothly, in a lucide outline, is
+once per ~14px, the arc holds sixteen heights off `4t(1−t)`, the sprite scales only by whole
+multiples (3x, and 0.667 of that is 2x). Sixteen and not eight because the parabola is
+steepest at its two ends: with eight, the last drop was nearly half the lift in one jump,
+which read as the animation breaking right as the star arrived. The star no longer shrinks
+as it lands either — at 0.58s that was two frames of wobble on top of the arrival, and the
+counter's own squeeze says *absorbed* without the star having to mime it. Moving pixel art smoothly, in a lucide outline, is
 what made the old straight line read as a browser effect laid over the game rather than part
 of it. The counter it lands in is the same drawing.
 
@@ -545,43 +562,6 @@ and some 2px, which on a shape that small is a lopsided star; that is why there 
 
 ---
 
-## Groceries
-
-The **shopping trolley** in the header opens a standing list, with a badge showing how many
-items are still to buy. Type an item and press enter; the field keeps focus, so a few
-things go in at once. Ticking something off strikes it out and drops it below a divider
-rather than deleting it, so you can see what's already in the trolley and untick a mis-tap;
-**Clear bought** removes them in one go and remembers their names as **Buy again** chips,
-which re-add a weekly staple in one tap.
-
-This is the only thing in the app that isn't anchored to a date, and that's the point of
-its being separate. Filing groceries as tasks under a "Groceries" goal would technically
-work, but a dozen items would bury the three things you actually planned to do that day and
-count against the day's progress bar. So it gets its own `kv` key and its own sheet, and
-touches nothing else:
-
-```js
-{ items: [{ id, name, bought, addedAt }], recent: ['Milk', …] }
-```
-
-`recent` is what you last cleared, newest first, capped at 12. A missing key means an empty
-list, so there is nothing to migrate. The reducers in `src/groceries.js` are pure functions
-of `(list, input) → list`, which is why `src/GroceryList.jsx` is only markup and
-`Ledger.jsx` only wiring.
-
-Two behaviours worth knowing, both matched on the trimmed, case-folded name so `Milk` and
-`milk ` are the same thing:
-
-- Adding something **already on the list** doesn't duplicate it — the existing row flashes
-  instead, so it reads as "already there" rather than as nothing happening.
-- Adding something **already bought** un-ticks it and lifts it back to the top. You've
-  decided you need it again, which is better served than by a second identical row.
-
-The add field is deliberately **not** autofocused. At the shop you're ticking things off,
-and a keyboard covering the list is worse than one extra tap when you do want to type.
-
----
-
 ## Moving your existing data across
 
 1. In the artifact version: **Manage → Export**, then **Download file** (or copy the text).
@@ -596,23 +576,23 @@ The storage keys and data shapes are identical, so it transfers as-is.
 - Data model is deliberately simple: one `kv` row per key per user. `all-days` holds the
   entire day history as a single JSON blob, which keeps request counts low. If it ever grows
   unwieldy (many years in), splitting it per-year would be the natural next step.
-  The theme is another key, `theme`, holding a bare id string, and the shopping list another,
-  `groceries` — neither needed a schema change. **Anything added here also has to go into
+  The theme is another key, `theme`, holding a bare id string, and the hatchery another,
+  `game` — neither needed a schema change. **Anything added here also has to go into
   Export and Restore** (`openExportModal` and the restore path in `Ledger.jsx`), or a restore
   silently wipes it.
 - `src/storage.js` is the only file that knows about Supabase. Swapping to a different
   backend later means rewriting that one file.
-- **Tap-at-a-time writes are debounced, so they need a write-ahead copy.** Day and grocery
+- **Tap-at-a-time writes are debounced, so they need a write-ahead copy.** Day and hatchery
   writes batch for 600ms before going to the network, which leaves a window where a change
   exists only in memory. An installed iOS web app is very good at closing inside that
   window — and `beforeunload`, which the flush used to rely on, essentially never fires
-  there. `src/useDurableBlob.js` closes the gap, and both `all-days` and `groceries` go
+  there. `src/useDurableBlob.js` closes the gap, and both `all-days` and `game` go
   through it:
   - The blob is mirrored to `localStorage` *synchronously* on every write
     (`src/pendingWrites.js`, one entry per storage key), and the mirror is cleared only
     once the server confirms. A mirror still present at the next launch means the last
     write never landed, so it is replayed. This also covers ticking something off — or
-    adding to the shopping list — with no connection.
+    feeding your pet — with no connection.
   - The flush is triggered by `visibilitychange` → hidden and `pagehide`, not just
     `beforeunload`. `visibilitychange` fires while the page is still alive, so the
     write has time to finish instead of being abandoned mid-flight.
