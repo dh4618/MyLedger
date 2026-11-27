@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { X, Sparkles } from 'lucide-react';
 import { useLang } from './i18n/LanguageProvider';
 import Pixel from './Pixel';
-import { spriteFor, MYSTERY_EGG, PIXEL_STAR, PIXEL_STAR_SMALL, PIXEL_NEST, PIXEL_BALL } from './pixels';
+import { spriteFor, hasAltFrame, MYSTERY_EGG, PIXEL_STAR, PIXEL_STAR_SMALL, PIXEL_NEST, PIXEL_BALL } from './pixels';
 import { stars, collection, activeEntry, progressOf, nextStage, stageOf, album, isPinned, residents, knownSpecies, seedAt, EGG_PRICE, FEED_COST } from './game';
 
 // The room has two halves, and which half a resident stands in is the point of them:
@@ -13,16 +13,21 @@ import { stars, collection, activeEntry, progressOf, nextStage, stageOf, album, 
 // where the nest and the mat are says it, and a caption on each would be the app
 // explaining its own furniture.
 //
-// `left`/`width` and `top`/`band` are percentages of the room. A sprite is 44px, about
-// 14% of the room's width, so the horizontal budget is the zone's width less that:
+// Residents are drawn on the whole 24x24 canvas rather than cropped to their art, so
+// a kid is visibly smaller than an adult and the two frames of a blink line up. The
+// box is always square and the art always sits on its bottom edge, which is what makes
+// "feet on the floor" one number for every shape.
+const RESIDENT_PX = 56;
+// `left`/`width` and `top`/`band` are percentages of the room. The box is 56px, about
+// 16% of the room's width, so the horizontal budget is the zone's width less that:
 // otherwise a resident at the end of its band stands half in the other zone.
-const SPRITE_PCT = 14;
+const SPRITE_PCT = 16;
 // The vertical bands are chosen against the room's own furniture: an egg's base lands
 // inside the nest's rim, and a creature's feet land on the mat rather than floating
 // above the skirting. Both are set in theme.css off the same --floor-y.
 const ZONES = {
-  hatch: { left: 8, width: 22, top: 44, band: 3 },
-  play: { left: 38, width: 58, top: 36, band: 34 },
+  hatch: { left: 8, width: 22, top: 38, band: 3 },
+  play: { left: 38, width: 58, top: 32, band: 30 },
 };
 
 // `left` is the middle of a resident, not its left edge — the sprites are between 12
@@ -148,6 +153,7 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
             const { left, top } = who.walks
               ? scatter(ZONES.play, who.seed)
               : inNest(ZONES.hatch, who.seed, eggIndex.get(who.id), eggIndex.size);
+            const sprite = spriteFor(who.species, who.stage);
             const duration = 7 + (seedAt(who.seed, 3) % 9);
             const delay = -(seedAt(who.seed, 4) % 11);
             const drift = 18 + (seedAt(who.seed, 5) % 20);
@@ -163,6 +169,11 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
                 style={{
                   left: `${left}%`,
                   top: `${top}%`,
+                  // Painter's order: whoever is standing further down the room is
+                  // nearer, so they overlap the ones behind. Two creatures sharing a
+                  // patch of mat then read as one in front of the other rather than
+                  // as a drawing order nobody chose.
+                  zIndex: Math.round(top),
                   '--drift': `${drift}%`,
                   '--walk-dur': `${duration}s`,
                   '--walk-delay': `${delay}s`,
@@ -171,13 +182,22 @@ export default function HatcheryPanel({ game, total, onBuy, onOpen, onStart, onS
                 }}
                 title={`${creatureName(who.species)} · ${stageName(who.stage)}`}
               >
-                {/* Three elements, one transform each: the outer holds the half-width
-                    offset that centres the sprite on its spot, the body wanders, and
-                    this one blinks. An element has only the one transform, and the
-                    later animation would simply replace the earlier. */}
+                {/* The wander is on the inner element so the outer can keep the
+                    half-width offset that centres the sprite on its spot — one
+                    transform cannot do both.
+
+                    The blink is the creature's second frame drawn over its first and
+                    uncovered for a moment, rather than anything done to the first.
+                    Both frames are the same 24x24 canvas and the only pixels that
+                    differ are the eyes, so the top frame hides the one underneath
+                    completely while it is up. An egg has no eyes: its second frame is
+                    the whole shape nudged a pixel, so it wobbles instead. */}
                 <div className="dt-resident-body">
-                  <div className="dt-resident-blink">
-                    <Pixel sprite={spriteFor(who.species, who.stage)} size={44} label={creatureName(who.species)} />
+                  <div className="dt-resident-frames">
+                    <Pixel sprite={sprite} size={RESIDENT_PX} fit="canvas" label={creatureName(who.species)} />
+                    {hasAltFrame(sprite) && (
+                      <Pixel sprite={sprite} frame="alt" size={RESIDENT_PX} fit="canvas" className="dt-blink-frame" />
+                    )}
                   </div>
                 </div>
               </div>

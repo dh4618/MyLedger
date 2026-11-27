@@ -343,19 +343,22 @@ The zone table lives in `HatcheryPanel` and is handed to CSS as custom propertie
 written out twice, so the nest is drawn at the middle of the band eggs stand in and the two
 can't drift apart as the layout is tuned.
 
-**Creatures blink.** Not eyelids — the sheet has no eyes-closed frames, and detecting eyes
-from the pixel data would be guesswork across sixteen sprites, since the frog's eyes, the
-cat's muzzle and Inky's page are all the same white. It is the other idle every sprite game
-has, a two-frame squash onto the feet every few seconds, which at this size reads as a
-creature doing something rather than standing still. The period and offset are seeded per
-creature, in **tenths** of a second: six possible periods and seven possible offsets is 42
-combinations, and three creatures found a collision on the first try — the same lesson as
-the stacked residents, one layer down.
+**Creatures blink**, every few seconds, with their eyes actually closed: each sprite has a
+second drawn frame, and the blink is that frame laid over the first and uncovered for a
+sixth of a second. It can be revealed rather than cross-faded because the pair share a
+canvas and differ only in the eyes, so the top frame covers the one beneath wherever it is
+drawn at all — one animation, no second timeline to drift out of step.
 
-That is a third nested element. Each of the three carries one transform, because an element
-has only the one and the later animation would simply replace the earlier: the outer holds
-the half-width offset that centres the sprite on its spot, the body wanders, the innermost
-blinks.
+An egg has no eyes, so its second frame is the whole shape nudged a pixel: the same
+machinery **wobbles** it.
+
+The period and offset are seeded per resident, in **tenths** of a second. Whole seconds gave
+six periods and seven offsets, and three creatures found a collision on the first try — the
+same lesson as the stacked residents, one layer down.
+
+**Who is in front** follows who is standing lower: `z-index` is the resident's `top`, so two
+creatures sharing a patch of mat read as one in front of the other rather than as a drawing
+order nobody chose.
 
 **Eggs are laid out, creatures are scattered.** A creature's spot, roam and gait all come from
 a hash of its id, so it keeps them across re-renders instead of teleporting on every repaint.
@@ -476,15 +479,35 @@ runs a month of game actions and asserts the `days` blob comes out byte-identica
 
 ### The art
 
-`src/pixels.js` holds all sixteen creature sprites as a palette plus one string per row — a
-few KB, no image requests, crisp at any size through `<Pixel>`, and a future Aseprite redraw
-replaces that one file. They keep their own palettes rather than being recoloured per theme:
-they are drawn artwork, and each carries its own outline, so they read on every palette.
+`src/pixels.js` holds all sixteen creature sprites — **two frames each** — as a palette plus
+one string per row. A few KB gzipped, no image requests, crisp at any size through `<Pixel>`,
+and a redraw replaces that one file. They keep their own palettes rather than being
+recoloured per theme: they are drawn artwork, and each carries its own outline, so they read
+on every palette. `alt` is the second frame against the same palette: eyes closed, or for an
+egg the whole shape nudged a pixel.
 
-If you ever regenerate them from a sheet: **do not decide transparency by colour.** The
-frog's eyes, the cat's muzzle and Inky's page are white *paint*, and a colour test reads
-them as holes — invisible on a light background, obvious on Dracula. Flood-fill from outside
-each sprite instead, so only white the fill can reach counts as background.
+It is generated from 32 transparent 24×24 PNGs, and **three properties of that source are
+load-bearing**. A redraw should keep all three:
+
+- **One canvas size for everything.** The frames of a pair then stack exactly, which is what
+  lets the blink be one drawing over another instead of a swap; and the stages sit at their
+  true relative sizes, a kid smaller than an adult because it is drawn smaller rather than
+  because `<Pixel>` was handed a number.
+- **Bottom-aligned.** Every creature stands on the canvas's last row, so one placement rule
+  puts any shape's feet on the floor.
+- **A real alpha channel.** The first set of these was recovered from a flat sheet, where
+  transparency had to be guessed by flood-filling from outside each sprite — deciding it by
+  colour got the frog's eyes, the cat's muzzle and Inky's page wrong, since those are white
+  *paint* rather than holes, which is invisible on a light background and obvious on Dracula.
+  With alpha there is nothing to guess.
+
+Because the canvas is uniform, `<Pixel>` has to be told which of two things `size` means.
+`fit="content"`, the default, crops to the drawn pixels so a picture **fills the slot it is
+given** — what a header icon, a shop row or an album thumbnail want, and what every sprite
+did implicitly back when they were stored pre-trimmed at sixteen different sizes. The room
+passes `fit="canvas"` to keep the whole frame, for the two reasons above: relative sizes, and
+frames that line up. Cropping an egg's wobble frame to its content would faithfully undo the
+wobble.
 
 Below the creatures, the same file holds the app's own **furniture**: the star, the `+1`, the
 nest, the ball. Those are the other way round — UI, not artwork, so they have to sit inside

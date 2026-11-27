@@ -1269,22 +1269,28 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
   animation-iteration-count: infinite;
 }
 .dt-resident-body { position: relative; }
-/* The blink. Not eyelids: the sheet has no eyes-closed frames, and detecting eyes from
-   the pixel data would be guesswork on sixteen sprites — the frog's eyes, the cat's
-   muzzle and Inky's page are all the same white. This is the other idle every sprite
-   game has, a two-frame squash onto the feet, which at this size reads as a creature
-   doing something rather than standing still. Seeded per creature so three of them
-   don't breathe in unison. */
-.dt-resident.walks .dt-resident-blink {
-  display: block;
-  transform-origin: 50% 100%;
+
+/* The blink: two drawn frames, not an effect.
+   The second frame sits exactly over the first and is uncovered for a sixth of a
+   second every few seconds. It can simply be revealed rather than cross-faded because
+   the pair share a canvas and differ only in the eyes, so the top one covers the
+   bottom one wherever it is drawn at all — which also means only one animation is
+   involved and there are no two timelines to drift apart.
+   An egg's second frame is the whole shape nudged a pixel, since an egg has no eyes,
+   so the same machinery wobbles it. Seeded per resident, in tenths of a second, so
+   nobody blinks in time with anybody else. */
+.dt-resident-frames { position: relative; display: block; }
+.dt-blink-frame {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
   animation: dt-blink var(--blink-dur) steps(1, end) var(--blink-delay) infinite;
 }
 @keyframes dt-blink {
-  0%, 92% { transform: scaleY(1); }
-  94%     { transform: scaleY(0.86); }
-  97%     { transform: scaleY(1); }
-  100%    { transform: scaleY(1); }
+  0%, 93% { opacity: 0; }
+  96%     { opacity: 1; }
+  99%     { opacity: 0; }
+  100%    { opacity: 0; }
 }
 /* On the body, not the outer: the marker follows the creature it marks. Square, like
    everything else in the room — a 5px circle in here is five rounded-off pixels. */
