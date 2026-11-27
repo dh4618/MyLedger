@@ -19,7 +19,7 @@ import { genId } from './ids';
 import { toDateStr, fromDateStr, addDays, startOfWeek, daysInMonth, formatHeadline, formatShortDate, formatMonthYear } from './dates';
 import { computeStreak } from './streak';
 import { spriteFor, MYSTERY_EGG, PIXEL_STAR, PIXEL_STAR_SMALL, PIXEL_PLUS_ONE } from './pixels';
-import { emptyGame, normalizeGame, totalCompleted, stars, buyEgg, openEgg, startIncubating, putDown, feed, migrate, iconFor, pinIcon, clearIcon } from './game';
+import { emptyGame, normalizeGame, totalCompleted, stars, buyEgg, openEgg, selectPet, feed, migrate, iconFor, pinIcon, clearIcon } from './game';
 
 // Goal colours are no longer stored on the goal: they come from the palette, so
 // they change with the theme instead of being frozen hex from whenever the goal
@@ -1491,8 +1491,7 @@ export default function Ledger() {
           total={completedTotal}
           onBuy={() => { const next = buyEgg(gameNow, completedTotal, genId()); if (next) saveGame(next); }}
           onOpen={(id) => { const next = openEgg(gameNow, id, Math.floor(Math.random() * 100000)); if (next) saveGame(next); }}
-          onStart={(id) => { const next = startIncubating(gameNow, id); if (next) saveGame(next); }}
-          onStop={() => saveGame(putDown(gameNow))}
+          onSelect={(id) => { const next = selectPet(gameNow, id); if (next) saveGame(next); }}
           /* One star, one step of growth. Returns null when it can't — no slot, no
              stars, already grown — and the button is disabled for the same reasons. */
           onFeed={() => { const next = feed(gameNow, completedTotal); if (next) saveGame(next); }}

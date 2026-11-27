@@ -471,12 +471,21 @@ Counting uses `completed[id] === true`, not key presence. Unticking writes `fals
 than deleting, so counting keys would pay you for work you undid — the same trap the streak
 hit.
 
-**One slot.** Eggs you own sit dormant until you choose one, and while something is in the
-slot nothing else may enter. The slot holds a growing creature too, not only an egg, or
-"one at a time" would quietly stop applying the moment something hatched. It is also where
-food goes. Putting something down keeps everything it has eaten — there is nothing to bank,
-since feeding writes progress the moment it happens — and picking it back up resumes from
-exactly there.
+**Choosing one.** Tap a pet in the collection and it goes on show in the slot, which is
+also where food goes. That is the whole interaction: there is no Raise button and no Put
+down, because choosing another pet is what moves it.
+
+Both of those buttons were protecting a queue that no longer exists. `selectPet()` used to
+refuse while anything else was in the slot, and to refuse a grown creature outright; with
+progress on the entry and nothing accruing to the slot, swapping costs nothing and a swap
+away and back leaves a pet exactly where it was. A grown creature can be chosen like any
+other — it simply has nothing left to eat, so no Feed button is drawn. Growing up no longer
+frees the slot either: taking a pet off screen the moment it finished growing is the
+opposite of showing you the one you picked.
+
+Still refused: an egg you have not opened. There is nothing to show yet, and that card
+offers Open instead — which is why an unopened egg is the one card that is a `div` rather
+than a `button`, since a button inside a button is not a thing.
 
 **Nothing here can tick a task.** The hatchery reads the log and never writes to it, so the
 report and the streak stay true no matter what happens in the game. There is a test that

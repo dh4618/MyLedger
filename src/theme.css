@@ -1335,6 +1335,9 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
 .dt-album-shot.pinned .dt-album-stage { color: var(--accent); font-weight: 600; }
 
 .dt-collection { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+/* A button for anything you can put on show, a plain div for an unopened egg, which
+   holds the Open button instead. Hence the resets: a bare <button> brings its own
+   font, its own colour — on iOS, link blue — and centred text it does not want. */
 .dt-creature-card {
   display: flex;
   flex-direction: column;
@@ -1346,7 +1349,13 @@ html[lang='zh-CN'] .dt-wordmark { letter-spacing: normal; }
   border-radius: var(--radius-lg);
   background: var(--surface);
   text-align: center;
+  font: inherit;
+  color: var(--ink);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
+div.dt-creature-card { cursor: default; }
 .dt-creature-card.active { border-color: var(--accent); box-shadow: none; }
 .dt-creature-name { font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
 .dt-creature-stage { font-size: 11px; color: var(--muted); }
